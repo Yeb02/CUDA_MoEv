@@ -24,44 +24,36 @@ struct Node_P {
 
 
 	// Used as the multiplied vector in matrix operations. Layout:
-	// input -> modulation.out -> children.out -> memoryChildren.out
-	float* postSynActs;
+	// input -> modulation.out -> children.out
+	float* inputArray;
+	float* inputArray_avg;
 
 	// Used as the result vector in matrix operations. Layout:
-	// output -> modulation.in -> children.in -> memoryChildren.in
-	float* preSynActs;
+	// output -> modulation.in -> children.in 
+	float* destinationArray;
+	float* destinationArray_avg;
 
 #ifdef STDP
-	// Same layout as PreSynActs, i.e.
-	// output -> modulation.in -> children.in -> memoryChildren.in
-	float* accumulatedPreSynActs;
-#endif
-
-#ifdef SATURATION_PENALIZING
-	// Layout:
-	// Modulation -> (children->inputSize) -> (memoryChildren->inputSize (mn owns it))
-	float* averageActivation;
-
-	// A parent updates it for its children (in and out), not for itself.
-	float* globalSaturationAccumulator;
+	// Same layout as destinationArray, i.e.
+	// output -> modulation.in -> children.in 
+	float* destinationArray_preAvg;
 #endif
 
 
-	Node_P(Node_G* type);
+
+	Node_P(Node_G* type, Node_G** nodes, int i, int iC, int* nC, int tNC);
 
 	// Should never be called.
 	Node_P() 
 	{
 		__debugbreak();
 #ifdef STDP
-		accumulatedPreSynActs = nullptr;
+		destinationArray_preAvg = nullptr;
 #endif
-#ifdef SATURATION_PENALIZING
-		averageActivation = nullptr;
-		globalSaturationAccumulator = nullptr;
-#endif
-		preSynActs = nullptr;
-		postSynActs = nullptr;
+		destinationArray_avg = nullptr;
+		destinationArray = nullptr;
+		inputArray_avg = nullptr;
+		inputArray = nullptr;
 		std::fill(totalM, totalM + MODULATION_VECTOR_SIZE, 0.0f);
 		type = nullptr;
 	}
@@ -76,9 +68,6 @@ struct Node_P {
 	// The last 2 parameters are optional :
 	// - aa only used when SATURATION_PENALIZING is defined
 	// - acc_pre_syn_acts only used when STDP is defined
-	void setArrayPointers(float** pre_syn_acts, float** post_syn_acts, float** aa, float** acc_pre_syn_acts);
+	void setArrayPointers(float** iA, float** iA_avg, float** dA, float** dA_avg, float** dA_preAvg);
 
-#ifdef SATURATION_PENALIZING
-	void setglobalSaturationAccumulator(float* globalSaturationAccumulator);
-#endif
 };

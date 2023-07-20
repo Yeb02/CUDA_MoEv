@@ -26,20 +26,6 @@
 #define SPARSE_MUTATION_AND_COMBINATIONS
 
 
-// When defined, for each network, float sp = sum of a function F of each activation of the network, at each step.
-// F is of the kind pow(activation, 2*k), so that its symmetric around 0 and decreasing in [-1,0]. (=> increasing in [0, -1])
-// At the end of the lifetime, sp is divided by the numer of steps and the number of activations, as both may differ from
-// one specimen to another. The vector of [sp/(nA*nS) for each specimen] is normalized (mean 0 var 1), and for each specimen
-// the corresponding value in the vector is substracted to the score in parallel of size and amplitude regularization terms
-// when computing fitness. The lower sum(F), the fitter.
-//#define SATURATION_PENALIZING
-
-
-// At each inference, a small random proportion of the lifetime quantities is reset to either 0 or a random value. These are,
-// when available; wL, H, E, w.
-//#define DROPOUT
-
-
 #define BASE_MUTATION_P .2f
 
 
@@ -63,5 +49,5 @@
 // When defined, presynaptic activities of complexNodes (topNode excepted) are an exponential moving average. Each node 
 // be it Modulation, complex, memory or output has an evolved parameter (STDP_decay) that parametrizes the average.
 // WARNING only compatible with N_ACTIVATIONS = 1, I havent implemented all the derivatives in complexNode_P::forward yet
-//#define STDP
+#define STDP
 

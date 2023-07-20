@@ -1,15 +1,12 @@
 #include "Node_G.h"
 
-Node_G::Node_G(int* inS, int* outS, int nC, Node_G* c) :
-	inputSize(inS[0]), outputSize(outS[0]),
+Node_G::Node_G(int* inS, int* outS, int nC) :
+	inputSize(inS[0]), outputSize(outS[0]), nChildren(nC),
 	toModulation(MODULATION_VECTOR_SIZE, computeNCols(inS, outS, nC)),
 	toChildren(nC > 0 ? nC * inS[1] : 0, computeNCols(inS, outS, nC)),
 	toOutput(outS[0], computeNCols(inS, outS, nC))
 {
-	children.reserve(nC);
-	for (int i = 0; i < nC; i++) {
-		children.emplace_back(c[i]);
-	}
+	
 };
 
 Node_G::Node_G(Node_G* n) {

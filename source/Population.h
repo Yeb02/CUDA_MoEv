@@ -3,7 +3,6 @@
 #include <memory>
 #include <cmath>
 #include <string>
-#include <thread>
 
 #include "Network.h"
 #include "Trial.h"

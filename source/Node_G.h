@@ -68,7 +68,7 @@ inline int binarySearch(float* proba, float value, int size) {
 
 struct Node_G {
 
-	Node_G(int* inS, int* outS, int nC, Node_G* c);
+	Node_G(int* inS, int* outS, int nC);
 
 	Node_G(Node_G* n);
 
@@ -83,11 +83,9 @@ struct Node_G {
 		return inS[0] + MODULATION_VECTOR_SIZE + cIn;
 	}
 
+	int nChildren;
 	int inputSize, outputSize; // >= 1
 
-	
-	// Contains pointers to the children. The same child can appear multiple times.
-	std::vector<Node_G*> children;
 
 	// Structs containing the constant, evolved, matrix of parameters linking internal nodes.
 	// The name specifies the type of node that takes the result of the matrix operations as inputs.

@@ -15,9 +15,6 @@ struct InternalConnexion_P {   // responsible of its pointers
 
 	void randomInitH();
 
-#ifdef DROPOUT
-	void dropout();
-#endif
 
 	// Should not be called !
 	// And strangely, is never called but removing its declaration causes an error.

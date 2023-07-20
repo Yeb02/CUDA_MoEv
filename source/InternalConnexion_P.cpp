@@ -12,23 +12,6 @@ InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* type) : type(type)
 	// zeroE(); not necessary, because Node_P::preTrialReset() should be called before any computation. 
 }
 
-#ifdef DROPOUT
-void InternalConnexion_P::dropout() {
-	int s = type->nLines * type->nColumns;
-
-	SET_BINOMIAL(s, .002f);
-	int _nResets = BINOMIAL;
-	for (int i = 0; i < _nResets; i++) {
-		int id = INT_0X(s);
-
-
-		H[id] = 0.0f;
-		E[id] = 0.0f;
-
-	}
-}
-#endif
-
 void InternalConnexion_P::zeroE() {
 	int s = type->nLines * type->nColumns;
 	std::fill(E.get(), E.get() + s, 0.0f);

@@ -44,6 +44,19 @@ protected:
 };
 
 
+struct GroupTrial 
+{
+
+	int nAgents;
+	int channelSize;
+
+	int netInSize, netOutSize;
+
+	Trial* innerTrial;
+
+	void step(float** agentsActions);
+};
+
 // Used in trials that have a "positional" component to their output, RocketSIm for instance.
 // Not needed for cartpole, as it is simple enough. 
 struct OctreeEncoder
