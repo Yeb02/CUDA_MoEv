@@ -14,9 +14,8 @@
 class Network {
 	
 public:
-	Network(int* inS, int* outS, int* nC, int depth);
+	Network(int* inS, int* outS, int* nC, int depth, int nTrialsPerGroup);
 
-	Network(Network* n);
 	~Network() {};
 
 	Network(std::ifstream& is);
@@ -28,13 +27,28 @@ public:
 	// pointee immediatly when getOutput() returns. If unsure, deep copy.
 	float* getOutput();
 
-	void step(const std::vector<float>& obs);
+	void step(float* input);
 	
 	void createPhenotype(int inputArraySize, int destinationArraySize, Node_G** nodes);
 	void destroyPhenotype();
 
 	// Sets to 0 the dynamic elements of the phenotype. 
 	void preTrialReset();
+
+	// How many trials the phenotype went through.
+	int nExperiencedTrials;
+
+	float lifetimeFitness;
+
+	// The ID of the group this network is part of.
+	int groupID;
+
+	// Stores the votes on each trial the group experiences. When a new group is formed, these are overwritten.
+	// Used by the population for computing fitnesses.
+	std::unique_ptr<float[]> perTrialVotes;
+
+	// Breadth first traversal of the tree. Used by population for module score calculations.
+	std::unique_ptr<Node_G* []> nodes;
 
 private:
 
@@ -45,7 +59,6 @@ private:
 	int* outS;
 	int* nC;
 	int depth;
-
 
 	std::unique_ptr<Node_P> topNodeP;
 
@@ -69,16 +82,10 @@ private:
 	std::unique_ptr<float[]> destinationArray_preAvg;
 #endif
 
-
-	int inputArraySize;
-	int destinationArraySize;
-
 	// How many inferences were performed since last call to preTrialReset by the phenotype.
 	int nInferencesOverTrial;
 
 	// How many inferences were performed since phenotype creation.
 	int nInferencesOverLifetime;
 
-	// How many trials the phenotype went through.
-	int nExperiencedTrials;
 };

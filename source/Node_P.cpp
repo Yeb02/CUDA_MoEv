@@ -85,7 +85,7 @@ void Node_P::forward(bool firstCall) {
 
 	// This lambda is used for all 3 propagations : modulation, children, output.
 	// It should be a GPU kernel.
-	inline auto forwardAndLocalUpdates = [this, firstCall](InternalConnexion_P& icp, int offset)
+	auto forwardAndLocalUpdates = [this, firstCall](InternalConnexion_P& icp, int offset)
 	{
 		// Variables defined for readability.
 

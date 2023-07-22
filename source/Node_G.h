@@ -86,23 +86,26 @@ struct Node_G {
 	int nChildren;
 	int inputSize, outputSize; // >= 1
 
+	// For external use by the network and population.
+	bool isInModuleArray;
+	float tempFitnessAccumulator;
+	int nTempFitnessAccumulations;
+	float lifetimeFitness;
+	int nUsesInNetworks;
 
 	// Structs containing the constant, evolved, matrix of parameters linking internal nodes.
 	// The name specifies the type of node that takes the result of the matrix operations as inputs.
-	// nColumns = this.inputSize + MODULATION_VECTOR_SIZE + sum(complexChild.inputSize) + sum(memoryChild.inputSize).
+	// nColumns = this.inputSize + MODULATION_VECTOR_SIZE + sum(children.inputSize)
 	InternalConnexion_G toChildren; // nLines = sum(children.inputSize) 
 	InternalConnexion_G toModulation; // nLines = MODULATION_VECTOR_SIZE
 	InternalConnexion_G toOutput; // nLines = outputSize
 
-
-	// returns the number of evolved floating point parameters.
-	int getNParameters() 
-	{
-		return  toChildren.getNParameters() + toModulation.getNParameters() + toOutput.getNParameters();
+	int getNParameters() {
+		return toChildren.getNParameters() + toModulation.getNParameters() + toOutput.getNParameters();
 	}
-
 	// Mutate real-valued floating point parameters.
 	void mutateFloats(float adjustedFMutationP);
 
+	static Node_G* combine(Node_G** parents, float* weights, int nParents);
 };
 

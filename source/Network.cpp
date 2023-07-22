@@ -3,26 +3,16 @@
 #include "Network.h"
 #include <iostream>
 
-Network::Network(Network* n)
-{
-	
-	inS = n->inS;
-	outS = n->outS;
-	nC = n->nC; 
-	depth = n->depth;
-
-	inputArraySize = -1;
-	destinationArraySize = -1;
-
-	topNodeP.reset(NULL);
-}
-
-
-Network::Network(int* inS, int* outS, int* nC, int depth) :
+Network::Network(int* inS, int* outS, int* nC, int depth, int nTrialsPerGroup) :
 	inS(inS), outS(outS), nC(nC), depth(depth)
 {
 	inputArraySize = -1;
 	destinationArraySize = -1;
+
+	lifetimeFitness = 0.0f;
+	
+	groupID = -1;
+	perTrialVotes = std::make_unique<float[]>(nTrialsPerGroup);
 
 	topNodeP.reset(NULL);
 }
@@ -48,12 +38,14 @@ void Network::destroyPhenotype() {
 }
 
 
-void Network::createPhenotype(int _inputArraySize, int _destinationArraySize, Node_G** nodes) {
+void Network::createPhenotype(int _inputArraySize, int _destinationArraySize, Node_G** _nodes) {
 	if (topNodeP.get() == NULL) {
+		nodes.reset(_nodes);
+
 		inputArraySize = _inputArraySize;
 		destinationArraySize = _destinationArraySize;
 
-		topNodeP.reset(new Node_P(nodes[0], nodes, 0, 1, nC, 1));
+		topNodeP.reset(new Node_P(nodes[0], nodes.get(), 0, 1, nC, 1));
 
 		destinationArray = std::make_unique<float[]>(destinationArraySize);
 		destinationArray_avg = std::make_unique<float[]>(destinationArraySize);
@@ -103,10 +95,10 @@ void Network::preTrialReset() {
 };
 
 
-void Network::step(const std::vector<float>& obs) {
+void Network::step(float* input) {
 
 	// float* kappa = topNodeP  aie aie aie TODO TODO TODO PRIORITAIRE
-	for (int i = 0; i < obs.size(); i++) {
+	for (int i = 0; i < inS[0]; i++) {
 		topNodeP->inputArray_avg[i] = topNodeP->inputArray_avg[i]*.9f + topNodeP->inputArray[i] * .1f;
 	}
 
@@ -114,10 +106,10 @@ void Network::step(const std::vector<float>& obs) {
 
 	if (firstCall) [[unlikely]]
 	{
-		std::copy(obs.begin(), obs.end(), topNodeP->inputArray_avg);
+		std::copy(input, input + inS[0], topNodeP->inputArray_avg);
 	}
 
-	std::copy(obs.begin(), obs.end(), topNodeP->inputArray);
+	std::copy(input, input+inS[0], topNodeP->inputArray);
 
 	std::fill(topNodeP->totalM, topNodeP->totalM + MODULATION_VECTOR_SIZE, 0.0f);
 

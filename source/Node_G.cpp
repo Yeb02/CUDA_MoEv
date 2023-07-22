@@ -6,7 +6,11 @@ Node_G::Node_G(int* inS, int* outS, int nC) :
 	toChildren(nC > 0 ? nC * inS[1] : 0, computeNCols(inS, outS, nC)),
 	toOutput(outS[0], computeNCols(inS, outS, nC))
 {
-	
+	isInModuleArray = false;
+	tempFitnessAccumulator = 0.0f;
+	nTempFitnessAccumulations = 0;
+	lifetimeFitness = 0.0f;
+	nUsesInNetworks = 0;
 };
 
 Node_G::Node_G(Node_G* n) {
@@ -18,35 +22,89 @@ Node_G::Node_G(Node_G* n) {
 	toModulation = n->toModulation;
 	toOutput = n->toOutput;
 
-	children.reserve(n->children.size());
-	for (int j = 0; j < n->children.size(); j++) {
-		children.emplace_back(n->children[j]);
-	}
+	isInModuleArray = false;
+	tempFitnessAccumulator = 0.0f;
+	nTempFitnessAccumulations = 0;
+	lifetimeFitness = 0.0f;
+	nUsesInNetworks = 0;
 }
 
+// Sparse version. TODO continuous (GPU enabled ?)
+Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
+{
+	Node_G* child = new Node_G(parents[0]);
+
+	InternalConnexion_G** connexions = new InternalConnexion_G * [nParents];
+
+
+	// copies parentCo's  matrices id-th components into childCo's matrices
+	auto copyMatComponents = [](InternalConnexion_G* parentCo, InternalConnexion_G* childCo, int id)
+	{
+		childCo->A[id] = parentCo->A[id];
+		childCo->B[id] = parentCo->B[id];
+		childCo->C[id] = parentCo->C[id];
+		childCo->eta[id] = parentCo->eta[id];
+	};
+
+	// copies parentCo's  arrays id-th components into childCo's array
+	auto copyArrComponents = [](InternalConnexion_G* parentCo, InternalConnexion_G* childCo, int id)
+	{
+		childCo->kappa[id] = parentCo->kappa[id];
+
+#ifdef STDP
+		childCo->STDP_mu[id] = parentCo->STDP_mu[id];
+		childCo->STDP_lambda[id] = parentCo->STDP_lambda[id];
+#endif
+	};
+
+	// combines all connexions of the "connexions" array into childCo
+	auto combineConnexions = [connexions, nParents, &copyArrComponents, &copyMatComponents](InternalConnexion_G* childCo)
+	{
+		int sMat = childCo->nLines * childCo->nColumns;
+		for (int i = 0; i < sMat; i++)
+		{
+			copyMatComponents(childCo, connexions[INT_0X(nParents)], i);
+		}
+
+		int sArr = childCo->nLines;
+		for (int i = 0; i < sArr; i++)
+		{
+			copyArrComponents(childCo, connexions[INT_0X(nParents)], i);
+		}
+	};
+
+
+	for (int j = 0; j < nParents; j++) { connexions[j] = &parents[j]->toChildren; }
+	combineConnexions(&child->toChildren);
+
+	for (int j = 0; j < nParents; j++) { connexions[j] = &parents[j]->toOutput; }
+	combineConnexions(&child->toOutput);
+
+	for (int j = 0; j < nParents; j++) { connexions[j] = &parents[j]->toModulation; }
+	combineConnexions(&child->toModulation);
+	
+
+	delete[] connexions;
+
+	return child;
+}
 
 Node_G::Node_G(std::ifstream& is) {
 
 	READ_4B(inputSize, is);
 	READ_4B(outputSize, is);
-
-	int _s;
-	READ_4B(_s, is);
-	children.resize(_s);
 	
 	toChildren = InternalConnexion_G(is);
 	toModulation = InternalConnexion_G(is);
 	toOutput = InternalConnexion_G(is);
 
+	isInModuleArray = false;
 }
 
 void Node_G::save(std::ofstream& os) {
 	WRITE_4B(inputSize, os);
 	WRITE_4B(outputSize, os);
 
-	int _s;
-	_s = (int)children.size();
-	WRITE_4B(_s, os);
 	
 	toChildren.save(os);
 	toModulation.save(os);

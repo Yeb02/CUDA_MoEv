@@ -2,23 +2,12 @@
 
 #include <iostream>
 #include <algorithm> // std::sort
-#include <mutex>     // threading
-#include <condition_variable> // threading
+#include <fstream>   // saving (serialized)
+#include <chrono>    // time since 1970 for gross perf. measures
 
 #include "Population.h"
-#include "Random.h"
 
 
-// Threading utils
-std::mutex m;
-std::condition_variable startProcessing;
-std::condition_variable doneProcessing;
-std::condition_variable hasTerminated;
-bool bStartProcessing = false;
-int nTerminated = 0;
-int nDoneProcessing = 0;
-
-int PhylogeneticNode::maxListSize = 0;
 
 // src is unchanged.
 void normalizeArray(float* src, float* dst, int size) {
@@ -63,382 +52,310 @@ void rankArray(float* src, float* dst, int size) {
 	return;
 }
 
-Population::Population(int IN_SIZE, int OUT_SIZE, int nSpecimens, bool fromDLL) :
-	nSpecimens(nSpecimens), fromDLL(fromDLL),
-	N_THREADS(0), threadIteration(0), mustTerminate(false)
+
+void Population::saveFittestSpecimen()
 {
-	threads.reserve(0);
-	globalTrials.reserve(0);
-	rawScores.reserve(0);
-	batchTransformedScores.reserve(0);
-	networks.resize(nSpecimens);
-	fitnesses.resize(nSpecimens);
-	for (int i = 0; i < nSpecimens; i++) {
-		networks[i] = new Network(IN_SIZE, OUT_SIZE);
-	}
+	uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+		std::chrono::system_clock::now().time_since_epoch()).count();
+
+	std::ofstream os("models\\topNet_" + std::to_string(ms) + ".renon", std::ios::binary);
+	networks[fittestSpecimen]->save(os);
+}
+
+
+Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params) :
+	groupTrial(trial)
+{
+	setEvolutionParameters(params);
+
+	nGroups = nSpecimens / groupTrial->nAgents;
+
 	
-	PopulationEvolutionParameters defaultParams;
-	setEvolutionParameters(defaultParams);
-
-	phylogeneticTree = new PhylogeneticNode[MAX_MATING_DEPTH * nSpecimens];
-	for (int i = 0; i < nSpecimens; i++) {
-		phylogeneticTree[i].children.resize(0);
-		phylogeneticTree[i].networkIndice = i;
-		phylogeneticTree[i].parent = nullptr;
-	}
-
 	fittestSpecimen = 0;
-	evolutionStep = 1; // starting at 1 is important for the phylogeneticTree.
-	nTrialsAtThisStep = -1;
-}
 
-void Population::stopThreads() {
-	if (threads.size() == 0) return;
 
+	modules.reserve(nLayers);
+	modules.resize(nLayers);
+
+	phylogeneticTrees.resize(nLayers);
+	phylogeneticTrees.reserve(nLayers);
+
+
+	for (int i = 0; i < nLayers; i++) 
 	{
-		std::lock_guard<std::mutex> lg(m);
-		mustTerminate = true;
-		nTerminated = (int) threads.size();
-	}
-	startProcessing.notify_all();
+		modules[i] = new Node_G*[nEvolvedModulesPerLayer[i]];
+		phylogeneticTrees[i] = new PhylogeneticNode*[nEvolvedModulesPerLayer[i]];
+		for (int j = 0; j < nEvolvedModulesPerLayer[i]; j++) {
 
-	// wait on workers.
+			modules[i][j] = new Node_G(inSizes+i, outSizes+i, nChildrenPerLayer[i]);
+			modules[i][j]->isInModuleArray = true;
+
+			phylogeneticTrees[i][j] = new PhylogeneticNode(nullptr, j);
+		}
+	}
+
+
+	int probabilitiesSize = nSpecimens;
+	for (int l = 0; l < nLayers; l++)
 	{
-		std::unique_lock<std::mutex> lg(m);
-		hasTerminated.wait(lg, [] {return nTerminated == 0; });
+		if (nEvolvedModulesPerLayer[l] > probabilitiesSize) {
+			probabilitiesSize = nEvolvedModulesPerLayer[l];
+		}
+	}
+	probabilities = std::make_unique<float[]>(probabilitiesSize);
+
+
+	mutationsProbabilitiesPerLayer = std::make_unique<float[]>(nLayers);
+	for (int l = 0; l < nLayers; l++)
+	{
+		mutationsProbabilitiesPerLayer[l] = BASE_MUTATION_P * powf((float)modules[l][0]->getNParameters(), -.5f);
 	}
 
-	for (int t = 0; t < N_THREADS; t++) threads[t].join();
+	nNodesPerNetwork = 0;
+	inputArraySize = 0;
+	destinationArraySize = 0;
+	nModulesPerNetworkLayer = std::make_unique<int[]>(nLayers);
+	nModulesPerNetworkLayer[0] = 1;
+	for (int l = 0; l < nLayers; l++)
+	{
+		int nc = nChildrenPerLayer[l];
+		if (l < nLayers - 1) nModulesPerNetworkLayer[l + 1] = nc * nModulesPerNetworkLayer[l];
 
-	N_THREADS = 0;
+		int cIs = nc == 0 ? 0 : inSizes[l + 1];
+		destinationArraySize += nModulesPerNetworkLayer[l] *
+			(outSizes[l] + MODULATION_VECTOR_SIZE + cIs * nc);
 
-}
+		int cOs = nc == 0 ? 0 : outSizes[l + 1];
+		inputArraySize += nModulesPerNetworkLayer[l] *
+			(inSizes[l] + MODULATION_VECTOR_SIZE + cOs * nc);
 
-void Population::startThreads(int N_THREADS) {
-	stopThreads();
-
-	mustTerminate = false;
-	this->N_THREADS = N_THREADS;
-	threads.resize(0); // to kill all previously existing threads.
-
-	if (N_THREADS < 2) return;
-
-	threads.reserve(N_THREADS);
-	threadIteration = -1;
-	int subArraySize = nSpecimens / N_THREADS;
-	int i0;
-	for (int t = 0; t < N_THREADS; t++) {  
-		i0 = t * subArraySize;
-		threads.emplace_back(&Population::threadLoop, this, i0, subArraySize);
+		nNodesPerNetwork += nModulesPerNetworkLayer[l];
 	}
-}
 
-Population::~Population() {
-	for (const Network* n : networks) {
-		delete n;
+	groupFitnesses = new float[nGroups * nTrialsPerGroup];
+
+	networks = new Network * [nSpecimens];
+	for (int i = 0; i < nSpecimens; i++) {
+		networks[i] = new Network(inSizes, outSizes, nChildrenPerLayer, nLayers, nTrialsPerGroup);
+		createPhenotype(networks[i]);
 	}
-	delete[] phylogeneticTree;
+
+	currentModuleReplacementTreshold = std::make_unique<float[]>(nLayers);
+	for (int l = 0; l < nLayers; l++) currentModuleReplacementTreshold[l] = -5.0f;  // TODO arbitrary
+	currentNetworkReplacementTreshold = -5.0f;
 }
 
-void Population::threadLoop(const int i0, const int subArraySize) {
-	std::vector<std::unique_ptr<Trial>> localTrials;
 
-	int currentThreadIteration = 0;
-	while (true) {
-		std::unique_lock<std::mutex> ul(m);
-		startProcessing.wait(ul, [&currentThreadIteration,this] {return (currentThreadIteration == threadIteration) || mustTerminate; });
-		if (mustTerminate) {
-			nTerminated--;
-			if (nTerminated == 0) {
-				ul.unlock();
-				hasTerminated.notify_one();
-			}
-			break;
+Population::~Population() 
+{
+	for (int i = 0; i < nLayers; i++)
+	{
+		for (int j = 0; j < nEvolvedModulesPerLayer[i]; j++) {
+			delete modules[i][j];
+			delete phylogeneticTrees[i][j];
 		}
-		ul.unlock();
+		delete[] modules[i];
 
-		currentThreadIteration++;
+		delete[] phylogeneticTrees[i];
+	}
 
-		// Copy init. Read only, so no mutex required.
-		if (localTrials.size() != globalTrials.size()) {
-			localTrials.resize(0);
-			for (int i = 0; i < globalTrials.size(); i++) {
-				localTrials.emplace_back(globalTrials[i]->clone());
-			}
-		}
-		else {
-			for (int i = 0; i < globalTrials.size(); i++) {
-				localTrials[i]->copy(globalTrials[i]);
-				localTrials[i]->reset(true);
-			}
-		}
+	for (int i = 0; i < nSpecimens; i) {
+		delete networks[i];
+	}
+	delete[] networks;
 
-		for (int i = i0; i < i0 + subArraySize; i++) {
+	delete[] groupFitnesses;
 
-			networks[i]->mutate(); 
-			networks[i]->createPhenotype();
-		}
-		
-
-		for (int i = 0; i < localTrials.size(); i++) {
-
-			evaluate(i0, subArraySize, localTrials[i].get(), rawScores.data() + i * nSpecimens);
-
-			ul.lock();
-			nDoneProcessing--;
-			if (nDoneProcessing == 0) {
-				ul.unlock();
-				doneProcessing.notify_one();
-			} else { ul.unlock(); }
-
-			// WAIT FOR NON THREADED OPERATION ON THE SCORE ARRAY.
-
-			ul.lock();
-			startProcessing.wait(ul, [&currentThreadIteration, this] {return (currentThreadIteration == threadIteration) || mustTerminate; });
-			ul.unlock();
-			currentThreadIteration++;
-
-			for (int j = i0; j < i0 + subArraySize; j++) {
-				networks[j]->postTrialUpdate(batchTransformedScores[i * nSpecimens + j], i);
-			}
-		}
-		
-		ul.lock();
-		nDoneProcessing--;
-		if (nDoneProcessing == 0) {
-			ul.unlock();
-			doneProcessing.notify_one();
-		}
+	for (int i = 0; i < toBeDestroyedModules.size(); i++) {
+		delete toBeDestroyedModules[i];
 	}
 }
 
-// TODO this order forces all phenotypes to be loaded in RAM during the same period, only one per thread is
-// a priority
-void Population::evaluate(const int i0, const int subArraySize, Trial* trial, float* rawScores) {
-	for (int i = i0; i < i0 + subArraySize; i++) {
-		networks[i]->preTrialReset();
-		trial->reset(useSameTrialInit); 
-		while (!trial->isTrialOver) {
-			networks[i]->step(trial->observations);
-			trial->step(networks[i]->getOutput());
+void Population::evolve(int nSteps) 
+{
+	for (int i = 0; i < nSteps; i++) 
+	{
+
+		// Sort networks by age
+		auto f = [](Network* n1, Network* n2) {return n1->nExperiencedTrials > n2->nExperiencedTrials; };
+		std::sort(networks, networks + nSpecimens, f);
+
+		// Shuffle networks inside each age group
+		for (int i = 0; i < groupTrial->nAgents; i++) {
+			std::shuffle(networks + i * nGroups, networks + (i + 1) * nGroups, generator);
 		}
-		rawScores[i] = trial->score;
-	}
+
+		evaluateGroups();
+
+		replaceModules();
+
+		replaceNetworks();
+
+		deleteUnusedModules();
+	} 
 }
 
-void Population::step(std::vector<std::unique_ptr<Trial>>& trials, int nTrialsEvaluated) {
-	// utils
-	nTrialsAtThisStep = (int)trials.size();
-	if (nSpecimens * nTrialsAtThisStep != rawScores.size()) {
-		rawScores.resize(nSpecimens * nTrialsAtThisStep);
-		batchTransformedScores.resize(nSpecimens * nTrialsAtThisStep);
-	}
-	// The indice of the first trial that will be used for fitness
-	int i0 = nTrialsAtThisStep - nTrialsEvaluated;
+void Population::evaluateGroups()
+{
+	Network** nets = new Network*[groupTrial->nAgents];
 
+	// Pointers to the group's network's outputs.
+	float** outputs = new float*[groupTrial->nAgents];
 
-	// Mutate, then evaluate the specimens on trials. Threaded operation if specified.
-	if (N_THREADS > 1) {
+	float* netInput = new float[groupTrial->netInSize];
 
-		// acquire pointers to this step's trials.
-		globalTrials.resize(nTrialsAtThisStep);
-		for (int j = 0; j <nTrialsAtThisStep; j++) {
-			globalTrials[j] = trials[j].get();
-		}
+	for (int g = 0; g < nGroups; g++) 
+	{
+		for (int i = 0; i < groupTrial->nAgents; i++)
+		{
+			nets[i] = networks[g + nGroups * i];
+			nets[i]->groupID = g;
 
-		for (int i = 0; i <nTrialsAtThisStep + 1; i++) {
+			// }
+			// we could shuffle nets at this point, so that the age of the agents is not always 
+			// in the same order in a net's input / output. Probably not worth the trouble.
+			// for (int i = 0; i < groupTrial->nAgents; i++) {
 			
-			// send msg to workers to start processing
+			outputs[i] = nets[i]->getOutput();
+		}
+
+		// TODO allocate the groups matrices on GPU
+
+		groupTrial->newGroup(outputs);
+
+		for (int i = 0; i < nTrialsPerGroup; i++) 
+		{
+			for (int j = 0; j < groupTrial->nAgents; j++) 
 			{
-				std::lock_guard<std::mutex> lg(m);
-				nDoneProcessing = N_THREADS;
-				threadIteration++;
+				nets[j]->preTrialReset();
 			}
-			startProcessing.notify_all();
 
-			// wait on workers.
+			groupTrial->intraGroupReset();
+			
+			while (!groupTrial->innerTrial->isTrialOver) 
 			{
-				std::unique_lock<std::mutex> lg(m);
-				doneProcessing.wait(lg, [] {return nDoneProcessing == 0; });
+				std::copy(
+					groupTrial->innerTrial->observations.begin(),
+					groupTrial->innerTrial->observations.end(),
+					netInput
+				);
+				for (int j = 0; j < groupTrial->nAgents; j++)
+				{
+					groupTrial->prepareInput(netInput + groupTrial->innerTrial->netInSize, j);
+					nets[j]->step(netInput);
+				}
+				groupTrial->step();
 			}
 
-			// Non threaded operations on the raw scores array:
-			if (i <nTrialsAtThisStep) {
-				switch (scoreBatchTransformation) {
-				case NORMALIZE:
-					normalizeArray(rawScores.data() + i * nSpecimens, batchTransformedScores.data() + i * nSpecimens, nSpecimens);
-					break;
-				case RANK:
-					rankArray(rawScores.data() + i * nSpecimens, batchTransformedScores.data() + i * nSpecimens, nSpecimens);
-					break;
-				case NONE:
-					std::copy(rawScores.data() + i * nSpecimens,
-						rawScores.data() + (i + 1) * nSpecimens,
-						batchTransformedScores.data() + i * nSpecimens);
-					break;
-				}	
+			groupTrial->normalizeVotes();
+			for (int j = 0; j < groupTrial->nAgents; j++)
+			{
+				nets[j]->perTrialVotes[i] = groupTrial->accumulatedVotes[j];
 			}
+
+			groupFitnesses[i * nGroups + g] = groupTrial->innerTrial->score;
+
 		}
+
+		// TODO deallocate the groups matrices on GPU
 	}
-	else {
-		for (int i = 0; i < nSpecimens; i++) {
-			networks[i]->mutate();
-			networks[i]->createPhenotype();
+
+	// monitoring
+	{
+		float avgF = 0.0f;
+		float maxF = -100000.0f;
+		for (int i = 0; i < nTrialsPerGroup * nGroups; i++)
+		{
+			if (groupFitnesses[i] > maxF) maxF = groupFitnesses[i];
+			avgF += groupFitnesses[i];
 		}
+		avgF /= (float)(nTrialsPerGroup * nGroups);
 
-		for (int i = 0; i < nTrialsAtThisStep; i++) {
-			evaluate(0, nSpecimens, trials[i].get(), rawScores.data() + i * nSpecimens);
-
-			switch (scoreBatchTransformation) {
-			case NORMALIZE:
-				normalizeArray(rawScores.data() + i * nSpecimens, batchTransformedScores.data() + i * nSpecimens, nSpecimens);
-				break;
-			case RANK:
-				rankArray(rawScores.data() + i * nSpecimens, batchTransformedScores.data() + i * nSpecimens, nSpecimens);
-				break;
-			case NONE:
-				std::copy(rawScores.data() + i * nSpecimens,
-					rawScores.data() + (i + 1) * nSpecimens,
-					batchTransformedScores.data() + i * nSpecimens);
-				break;
-			}
-
-			for (int j = 0; j < nSpecimens; j++) {
-				networks[j]->postTrialUpdate(batchTransformedScores[j], i);
-			}
-		}
+		std::cout << " Avg raw group fitness: " << avgF << ", max group fitness : " << maxF << std::endl;
 	}
 
 
-	// logging scores. monitoring only, can be disabled.
-	if (true) {
-	
-		std::vector<float> avgScoresPerTrial(nTrialsEvaluated);
-		float maxScore = -1000000.0f;
-		int maxScoreID = 0;
-		float score, avgFactor = 1.0f / (float)nTrialsEvaluated;
-		for (int i = 0; i < nSpecimens; i++) {
-			score = 0;
-			for (int j = i0; j <nTrialsAtThisStep; j++) {
-				score += rawScores[i + j * nSpecimens];
-				avgScoresPerTrial[j - i0] += rawScores[i + j * nSpecimens];
-			}
-			score *= avgFactor;
-			if (score > maxScore) {
-				maxScore = score;
-				maxScoreID = i;
-			}
-		}
-		for (int j = 0; j < nTrialsEvaluated; j++) avgScoresPerTrial[j] /= (float)nSpecimens;
-		float avgavgf = 0.0f;
-		for (float f : avgScoresPerTrial) avgavgf += f;
-		avgavgf /= nTrialsEvaluated;
-		std::cout << "At generation " << evolutionStep
-		<< ", max score = " << maxScore
-		<< ", average score per specimen per trial = " << avgavgf << ".\n";
-		//std::cout << maxScore << ", ";
-		trials[0]->reset();
-		Network* n = networks[maxScoreID];
-		n->createPhenotype(); // should be already created
-		n->preTrialReset();
-		while (!trials[0]->isTrialOver) {
-			n->step(trials[0]->observations);
-			trials[0]->step(n->getOutput());
-		}
-		std::cout << "Best specimen's score on new trial = " << trials[0]->score << std::endl;
-		
+
+	// For all i, the i-th trials of every groups are compared (ranked).
+	for (int i = 0; i < nTrialsPerGroup; i++)
+	{
+		rankArray(groupFitnesses + i * nGroups, groupFitnesses + i * nGroups, nGroups);
 	}
 
-	// Competition score adjustment. Assuming that either all networks have a valid parentData, or none has.
-	// Uses batchTransformed scores. Happens here and not in computeFitnesses because is specific for each trial.
-	if (competitionFactor != 0.0f && networks[0]->parentData.isAvailable) { 
-		for (int i = 0; i < nSpecimens; i++) {
-			for (int j = i0; j <nTrialsAtThisStep; j++) {
-				batchTransformedScores[i + j * nSpecimens] += competitionFactor *
-						(batchTransformedScores[i + j * nSpecimens] - networks[i]->parentData.scores[j]);
-			}
+	// Kinda ugly, possibly 100% cache misses. TODO make lifetimeFitness,
+	// tempFitnessAccumulator and nTempFitnessAccumulations into
+	// population owned arrays, adding a field arrayId to Node_G.
+	// And accumulate only if isInModuleArray. (cache miss....)
+	for (int l = 0; l < nLayers; l++) {
+		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
+			modules[l][i]->tempFitnessAccumulator = 0.0f;
+			modules[l][i]->nTempFitnessAccumulations = 0;
 		}
 	}
 
+	// update modules and network fitnesses.
+	for (int i = 0; i < nSpecimens; i++)
+	{
+		float f = 0.0f;
+		for (int j = 0; j < nTrialsPerGroup; j++)
+		{
+			float gf = groupFitnesses[j * nGroups + networks[i]->groupID];
+			float v = networks[i]->perTrialVotes[j];
 
-	// Compute the final score per specimen.
-	std::vector<float> avgScorePerSpecimen(nSpecimens);
-//#ifdef SPECIALIZATION_INCENTIVE  Removed the option.
-//	float invP = 1.0f / SPECIALIZATION_INCENTIVE;
-//	for (int i = 0; i < nSpecimens; i++) {
-//		float s = 0.0f;
-//		for (int j = i0; j <nTrialsAtThisStep; j++) {
-//			s += powf(std::max( batchTransformedScores[i + j * nSpecimens], 0.0f) , SPECIALIZATION_INCENTIVE);
-//		}
-//		avgScorePerSpecimen[i] = powf(s, invP);
-//	}
-//#else
-	for (int i = 0; i < nSpecimens; i++) {
-		for (int j = i0; j <nTrialsAtThisStep; j++) {
-			avgScorePerSpecimen[i] += batchTransformedScores[i + j * nSpecimens];
+			f += (1.0f + voteValue * (gf>0?1.f:-1.f) * v) * gf;
+		}
+		f /= (float)nTrialsPerGroup;
+
+		networks[i]->lifetimeFitness = networks[i]->lifetimeFitness * accumulatedFitnessDecay + f;		
+
+		for (int j = 0; j < nNodesPerNetwork; j++) {
+			networks[i]->nodes[j]->tempFitnessAccumulator += f;
+			networks[i]->nodes[j]->nTempFitnessAccumulations++;
+		}
+ 	}
+
+	for (int l = 0; l < nLayers; l++) {
+		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
+			Node_G* m = modules[l][i];
+			m->tempFitnessAccumulator /= (float) m->nTempFitnessAccumulations;
+			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;		
 		}
 	}
 
-	// Adds regularization, saturation penalization, ...
-	computeFitnesses(avgScorePerSpecimen);
-
-	createOffsprings();
+	delete[] nets;
+	delete[] outputs;
+	delete[] netInput;
 }
 
-void Population::computeFitnesses(std::vector<float>& avgScorePerSpecimen) {
+void Population::createPhenotype(Network* net) 
+{
+	Node_G** genotype = new Node_G * [nNodesPerNetwork]; // ownership is transferred to the network.
 
-	// compute and rank the regularization term
-	std::vector<float> regularizationScore(nSpecimens);
-	for (int i = 0; i < nSpecimens; i++) {
-		regularizationScore[i] = networks[i]->getRegularizationLoss();
+	int id = 0;
+	for (int l = 0; l < nLayers; l++) {
+		for (int n = 0; n < nModulesPerNetworkLayer[l]; n++) {
+			genotype[id] = modules[l][INT_0X(nEvolvedModulesPerLayer[l])];
+			genotype[id]->nUsesInNetworks++;
+			id++;
+		}
 	}
-	//normalizeArray(regularizationScore.data(), regularizationScore.data(), nSpecimens);
-	rankArray(regularizationScore.data(), regularizationScore.data(), nSpecimens);
 
-
-#ifdef SATURATION_PENALIZING
-	// compute and normalize the saturation term
-	std::vector<float> saturationScore(nSpecimens);
-	for (int i = 0; i < nSpecimens; i++) {
-		saturationScore[i] = networks[i]->getSaturationPenalization();
-	}
-	//normalizeArray(saturationScore.data(), saturationScore.data(), nSpecimens);
-	rankArray(saturationScore.data(), saturationScore.data(), nSpecimens);
-#endif
-
-
-	
-	if (rankingFitness) {
-		rankArray(avgScorePerSpecimen.data(), avgScorePerSpecimen.data(), nSpecimens);
-	}
-	/*else {
-		normalizeArray(avgScorePerSpecimen.data(), avgScorePerSpecimen.data(), nSpecimens);
-	}*/
-
-
-	// Then, the fitness is simply a weighted sum of score, regularization, and saturation if enabled.
-	for (int i = 0; i < nSpecimens; i++) {
-		fitnesses[i] = avgScorePerSpecimen[i] - regularizationFactor * regularizationScore[i];
-#ifdef SATURATION_PENALIZING
-		fitnesses[i] -= saturationFactor * saturationScore[i];
-#endif
-	}
+	net->createPhenotype(inputArraySize, destinationArraySize, genotype);
 }
 
-Network* Population::createChild(PhylogeneticNode* primaryParent) {
+
+Node_G* Population::createChild(PhylogeneticNode* primaryParent, int moduleLayer) {
 
 	// Reminder: when this function is called, nParents > 1.
 
 	std::vector<int> parents;
-	parents.push_back(primaryParent->networkIndice);
+	parents.push_back(primaryParent->modulePosition);
 	
 	std::vector<float> rawWeights;
 	rawWeights.resize(nParents);
 
 	// fill parents, and weights are initialized with a function of the phylogenetic distance.
 	{
-		PhylogeneticNode* previousRoot = primaryParent;
-		PhylogeneticNode* root = primaryParent->parent;
 		bool listFilled = false;
 
 		auto distanceValue = [] (float d) 
@@ -446,66 +363,36 @@ Network* Population::createChild(PhylogeneticNode* primaryParent) {
 			return powf(1.0f+d, -0.6f);
 		};
 
-		for (int depth = 1; depth < MAX_MATING_DEPTH; depth++) {
-
-			if (depth <= CONSANGUINITY_DISTANCE) 
-			{
-				previousRoot = root;
-				root = root->parent;
-				continue;
-			}
+		for (int depth = CONSANGUINITY_DISTANCE; depth < MAX_PHYLOGENETIC_DEPTH; depth++) {
 
 			float w = distanceValue((float) depth);
 			std::fill(rawWeights.begin() + (int)parents.size(), rawWeights.end(), w);
 
-			int nC = (int)root->children.size();
-
-			// we start at a random indice in the root children, so that if the list is filled before the end of this
-			// loop iteration it is not always the same networks that are selected.
-			int i0 = INT_0X(nC); 
-
-			for (int i = 0; i < nC; i++) {
-				int id = (i + i0) % nC;
-				if (root->children[id] != previousRoot) {
-					if (!root->children[id]->addToList(parents, depth-1)) {
-						listFilled = true;
-						break;
-					}
-				}
-			}
+			primaryParent->fillList(parents, 0, depth, nullptr, nParents);
 
 			// parents.size() == nParents can happen if there were exactly as many parents 
 			// as there was room left in the array. This does not set listFilled = true.
 			if (listFilled || parents.size() == nParents) break; 
-
-			previousRoot = root;
-			root = root->parent;
 		}
 	}
 
 	if (parents.size() == 1) { // There were no close enough relatives.
-		return new Network(networks[parents[0]]);
+		return new Node_G(modules[moduleLayer][primaryParent->modulePosition]);
 	}
 
-	float f0;
-	if (networks[primaryParent->networkIndice]->parentData.isAvailable && USE_PARENT_FITNESS_AS_ZERO) { // TODO experimental
-		f0 = networks[primaryParent->networkIndice]->parentData.f;
-	}
-	else {
-		f0 = fitnesses[primaryParent->networkIndice];
-	}
+	float f0 = modules[moduleLayer][primaryParent->modulePosition]->lifetimeFitness;
 
-	std::vector<Network*> parentNetworks;
+	std::vector<Node_G*> parentNodes;
 
 #ifdef  SPARSE_MUTATION_AND_COMBINATIONS
-	parentNetworks.push_back(networks[parents[0]]);
+	parentNodes.push_back(modules[moduleLayer][parents[0]]);
 	for (int i = 1; i < parents.size(); i++) {
-		if (fitnesses[parents[i]] > f0) {
-			parentNetworks.push_back(networks[parents[i]]);
+		if (modules[moduleLayer][parents[i]]->lifetimeFitness > f0) {
+			parentNodes.push_back(modules[moduleLayer][parents[i]]);
 		}
 	}
-	if (parentNetworks.size() == 1) { // There were no close enough relatives with a better fitness
-		return new Network(networks[parents[0]]);
+	if (parentNodes.size() == 1) { // There were no close enough relatives with a better fitness
+		return new Node_G(modules[moduleLayer][primaryParent->modulePosition]);
 	}
 #else
 
@@ -518,126 +405,112 @@ Network* Population::createChild(PhylogeneticNode* primaryParent) {
 	{
 		rawWeights[0] = 1.0f;
 		for (int i = 1; i < parents.size(); i++) {
-			rawWeights[i] *= (fitnesses[parents[i]] - f0); // TODO better
+			rawWeights[i] *= (fitnesses[parents[i]] - f0); // TODO  adapt to MoEv
 		}
 	}
 #endif
 	
 
-	return Network::combine(parentNetworks, rawWeights);
+	return Node_G::combine(parentNodes.data(), rawWeights.data(), (int)parentNodes.size());
 }
 
-void Population::createOffsprings() {
-	uint64_t start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-	float* phase1Probabilities = new float[nSpecimens];
-	float* phase2Probabilities = new float[nSpecimens];
-	Network** tempNetworks = new Network* [nSpecimens];
-
-	float fMax = -10000.0f;
-	for (int i = 0; i < nSpecimens; i++) {
-		if (fitnesses[i] > fMax) {
-			fMax = fitnesses[i];
-			fittestSpecimen = i;
-		}
-	}
-
-	float normalizationFactor = 1.0f / (fMax - selectionPressure.first);
-	if (fMax < selectionPressure.first) normalizationFactor = 0.0f;
-	for (int i = 0; i < nSpecimens; i++) {
-		phase1Probabilities[i] = (fitnesses[i] - selectionPressure.first)*normalizationFactor;
-		if (fitnesses[i] < selectionPressure.second) phase2Probabilities[i] = 0.0f;
-		else phase2Probabilities[i] = fitnesses[i] - selectionPressure.second;
-	}
-
-	
-
-	int parentPhylogeneticTreeID = ((evolutionStep-1) % MAX_MATING_DEPTH) * nSpecimens;
-	int phylogeneticTreeID = (evolutionStep % MAX_MATING_DEPTH) * nSpecimens;
-	int nReconductedSpecimens = 0;
-
-	// lambda just not to write this twice.
-	auto doEverything = [&](int parentID, int childID) {
-
-		PhylogeneticNode* childNode = &phylogeneticTree[phylogeneticTreeID + childID];
-		childNode->children.resize(0);
-		childNode->parent = &phylogeneticTree[parentPhylogeneticTreeID + parentID];
-		childNode->networkIndice = childID;
-		childNode->parent->children.push_back(childNode);
-
-		if (evolutionStep < MAX_MATING_DEPTH || nParents == 1) {
-			tempNetworks[childID] = new Network(networks[parentID]);
-		}
-		else {
-			tempNetworks[childID] = createChild(childNode->parent);
-		}
-
-		if (!fromDLL) {
-			tempNetworks[childID]->parentData.isAvailable = true;
-			tempNetworks[childID]->parentData.scoreSize = nTrialsAtThisStep;
-			tempNetworks[childID]->parentData.scores = new float[nTrialsAtThisStep];
-			for (int i = 0; i < nTrialsAtThisStep; i++) {
-				tempNetworks[childID]->parentData.scores[i] = batchTransformedScores[i * nSpecimens + parentID];
-			}
-			tempNetworks[childID]->parentData.f = fitnesses[parentID];
-		}
-
-		return;
+void Population::deleteUnusedModules()
+{
+	auto eraseUnused = [](Node_G* n) {
+		return n->nUsesInNetworks == 0;
 	};
 
-	
+	std::erase_if(toBeDestroyedModules, eraseUnused);
+}
+
+
+void Population::replaceNetworks()
+{
+	int nReplacements = 0;
 	for (int i = 0; i < nSpecimens; i++) {
-		if (UNIFORM_01 < phase1Probabilities[i]) {
-			if (i == fittestSpecimen) fittestSpecimen = nReconductedSpecimens; // happens once and only once
-			doEverything(i, nReconductedSpecimens);
-			nReconductedSpecimens++;
+		if (networks[i]->lifetimeFitness > currentNetworkReplacementTreshold) continue;
+
+		nReplacements++;
+		int id = 0;
+		for (int l = 0; l < nLayers; l++) {
+			for (int n = 0; n < nModulesPerNetworkLayer[l]; n++) {
+				networks[i]->nodes[id]->nUsesInNetworks--;
+				id++;
+			}
 		}
-	}
-	std::cout << "reconducted fraction : " << (float)nReconductedSpecimens / (float)nSpecimens << std::endl;
 
-	// Compute probabilities for roulette wheel selection.
-	float invProbaSum = 0.0f;
-	for (int i = 0; i < nSpecimens; i++) {
-		invProbaSum += phase2Probabilities[i];
-	}
-	invProbaSum = 1.0f / invProbaSum;
-
-	phase2Probabilities[0] = phase2Probabilities[0] * invProbaSum;
-	for (int i = 1; i < nSpecimens; i++) {
-		phase2Probabilities[i] = phase2Probabilities[i - 1] + phase2Probabilities[i] * invProbaSum;
-	}
-
-	int parentID;
-	for (int i = nReconductedSpecimens; i < nSpecimens; i++) {
-		parentID = binarySearch(phase2Probabilities, UNIFORM_01, nSpecimens);
-		doEverything(parentID, i);
-	}
-
-
-	// Clean up and update
-	for (int i = 0; i < nSpecimens; i++) {
 		delete networks[i];
+
+		networks[i] = new Network(inSizes, outSizes, nChildrenPerLayer, nLayers, nTrialsPerGroup);
+		createPhenotype(networks[i]);
 	}
 
-	for (int i = 0; i < nSpecimens; i++) {
-		networks[i] = tempNetworks[i];
+	if ((float)nReplacements / (float)nSpecimens < networkReplacedFraction) 
+	{
+		currentNetworkReplacementTreshold *= 1.0f / .8f; // TODO arbitrary
 	}
+	else {
+		currentNetworkReplacementTreshold *= .8f;
+	}
+}
 
-	// d is used because for the MAX_MATING_DEPTH-1 first steps we cant traverse the deeper layers
-	// of the tree. 2 is the stable value.
-	int d = 2 + std::max(0, MAX_MATING_DEPTH - evolutionStep - 1);
-	for (int i = parentPhylogeneticTreeID; i < parentPhylogeneticTreeID + nSpecimens; i++) {
-		if (phylogeneticTree[i].children.size() == 0) {
-			phylogeneticTree[i].erase(d);
+void Population::replaceModules() {
+	uint64_t start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+	for (int l = 0; l < nLayers; l++) {
+
+		// Compute roulette probabilities.
+		{
+			float invProbaSum = 0.0f;
+
+			for (int i = 0; i < nSpecimens; i++) {
+				float pRaw = modules[l][i]->lifetimeFitness - currentModuleReplacementTreshold[l];
+				if (pRaw > 0) probabilities[i] = pRaw;
+				else probabilities[i] = 0.0f;
+
+				invProbaSum += probabilities[i];
+			}
+
+			invProbaSum = 1.0f / invProbaSum;
+
+			probabilities[0] = probabilities[0] * invProbaSum;
+			for (int i = 1; i < nEvolvedModulesPerLayer[l]; i++) {
+				probabilities[i] = probabilities[i - 1] + probabilities[i] * invProbaSum;
+			}
+		}
+
+		int nReplacements = 0;
+
+		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
+			if (modules[l][i]->lifetimeFitness < currentModuleReplacementTreshold[l]) 
+			{
+				modules[l][i]->isInModuleArray = false;
+				toBeDestroyedModules.push_back(modules[l][i]);
+
+				phylogeneticTrees[l][i]->modulePosition = -1;
+				phylogeneticTrees[l][i]->updateDepth(-1);
+
+				int parentID = binarySearch(probabilities.get(), UNIFORM_01, nEvolvedModulesPerLayer[l]);
+
+				modules[l][i] = createChild(phylogeneticTrees[l][parentID], l);
+				modules[l][i]->mutateFloats(mutationsProbabilitiesPerLayer[l]);
+				modules[l][i]->isInModuleArray = true;
+
+				phylogeneticTrees[l][i] = new PhylogeneticNode(phylogeneticTrees[l][parentID], i);
+			}
+		}
+
+		if ((float)nReplacements / (float)nEvolvedModulesPerLayer[l] < moduleReplacedFractions[l])
+		{
+			currentNetworkReplacementTreshold *= 1.0f / .8f;
+		}
+		else {
+			currentNetworkReplacementTreshold *= .8f;
 		}
 	}
 
-	delete[] tempNetworks;
-	delete[] phase1Probabilities;
-	delete[] phase2Probabilities;
-	
-	evolutionStep++;
 
 	uint64_t stop = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-	//std::cout << "Offspring creation took " << stop - start << " ms." << std::endl;
+	//std::cout << "Modules creation took " << stop - start << " ms." << std::endl;
 }

@@ -44,7 +44,7 @@ struct InternalConnexion_G {
 	void save(std::ofstream& os);
 
 	int getNParameters() {
-		return 4 * nLines * nColumns; // not counting parameters used only nLines times
+		return nLines * (4 * nColumns + 1); // + 3 instead of +1 if stdp, but does not matter.
 	}
 
 	void mutateFloats(float p);

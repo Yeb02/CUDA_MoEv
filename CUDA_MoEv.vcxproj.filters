@@ -18,9 +18,6 @@
     <ClInclude Include="source\config.h">
       <Filter>headers</Filter>
     </ClInclude>
-    <ClInclude Include="source\dllMain.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="source\InternalConnexion_G.h">
       <Filter>headers</Filter>
     </ClInclude>
@@ -36,9 +33,6 @@
     <ClInclude Include="source\Random.h">
       <Filter>headers</Filter>
     </ClInclude>
-    <ClInclude Include="source\RocketSim.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="source\Trial.h">
       <Filter>headers</Filter>
     </ClInclude>
@@ -48,9 +42,6 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\Node_P.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\dllMain.cpp">
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\InternalConnexion_G.cpp">
@@ -68,10 +59,10 @@
     <ClCompile Include="source\Random.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="source\RocketSim.cpp">
+    <ClCompile Include="source\Trial.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="source\Trial.cpp">
+    <ClCompile Include="source\main.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>

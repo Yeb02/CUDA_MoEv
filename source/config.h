@@ -19,6 +19,13 @@
 //#define MEMORY_T
 //#define ROCKET_SIM_T 
 
+// When defined, CPU functions replace CUDA kernels. Used for debugging purposes.
+#define NO_CUDA
+
+// When defined, presynaptic activities of complexNodes (topNode excepted) are an exponential moving average. Each node 
+// be it Modulation, complex, memory or output has an evolved parameter (STDP_decay) that parametrizes the average.
+// WARNING only compatible with N_ACTIVATIONS = 1, I havent implemented all the derivatives in complexNode_P::forward yet
+#define STDP
 
 // Mutations consist in adding a sparse gaussian vector to the network, whose components have
 // significant values. Combination replaces each parameter with one of its parents, sampled uniformly
@@ -32,12 +39,15 @@
 #define MODULATION_VECTOR_SIZE 1     // DO NOT CHANGE
 
 
-// Maximum number of generations since last common ancestor of two  (of the) specimens combined to form a new specimen. >= 2.
-#define MAX_MATING_DEPTH 10
+// Maximum depth of the phylogenetic tree. This means that all pairs of modules used in a combination cannot be
+// be further away genetically than MAX_PHYLOGENETIC_DEPTH combinations and mutations. 
+// MUST BE >= 1
+#define MAX_PHYLOGENETIC_DEPTH 10
 
 
 // Positive integer value. Specimens whose phenotypic distance to the primary parent are below it are not used for combination.
-#define CONSANGUINITY_DISTANCE 0
+// MUST BE >= 1
+#define CONSANGUINITY_DISTANCE 3
 
 
 // parameters that have values in the range [0,1] are initialized with mean DECAY_PARAMETERS_BIAS
@@ -45,9 +55,4 @@
 // X(t+1) = X(t) * (1-µ)  +  µ * ....
 #define DECAY_PARAMETERS_INIT_BIAS .2f
 
-
-// When defined, presynaptic activities of complexNodes (topNode excepted) are an exponential moving average. Each node 
-// be it Modulation, complex, memory or output has an evolved parameter (STDP_decay) that parametrizes the average.
-// WARNING only compatible with N_ACTIVATIONS = 1, I havent implemented all the derivatives in complexNode_P::forward yet
-#define STDP
 

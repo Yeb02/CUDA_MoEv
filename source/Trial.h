@@ -7,7 +7,7 @@
 // The base virtual class which any trial should inherit from. 
 // The score attribute must be a positive measure of the success of the run.
 class Trial {
-
+	friend struct GroupTrial;
 public:
 	// Given the actions of the network, proceeds one step forward in the trial.
 	virtual void step(const float* actions) = 0;
@@ -46,15 +46,113 @@ protected:
 
 struct GroupTrial 
 {
-
 	int nAgents;
 	int channelSize;
 
 	int netInSize, netOutSize;
 
-	Trial* innerTrial;
+	// For the first voteDiscardPeriod steps of the inner trial, votes are not
+	// added to accumulatedVotes, so that initialization shenanigans do not cause
+	// problems.
+	static const int voteDiscardPeriod = 5;
 
-	void step(float** agentsActions);
+	std::unique_ptr<Trial> innerTrial;
+
+	std::unique_ptr<float[]> votes;
+
+	std::unique_ptr<float[]> accumulatedVotes;
+
+	// pointers towards the output of each agent.
+	float** agentsOutputs;
+
+	GroupTrial(Trial* t, int nAgents, int channelSize) : innerTrial(t), nAgents(nAgents), channelSize(channelSize)
+	{
+		netInSize = innerTrial->netInSize + nAgents * (innerTrial->netOutSize + channelSize);
+		netOutSize = innerTrial->netOutSize + nAgents - 1 + channelSize;
+		votes = std::make_unique<float[]>(nAgents);
+		accumulatedVotes = std::make_unique<float[]>(nAgents);
+	}
+
+	void zeroVotes() { 
+		std::fill(accumulatedVotes.get(), accumulatedVotes.get() + nAgents, 0.0f); 
+	}
+
+	void normalizeVotes() 
+	{
+		// nAgents or nAgents-1 ?
+		float f = 1.0f / (float)((innerTrial->currentNStep - voteDiscardPeriod) * nAgents); 
+
+		for (int j = 0; j < nAgents; j++) {
+			accumulatedVotes[j] *= f;
+		}
+	}
+
+	void newGroup(float** _agentsOutputs){
+		agentsOutputs = _agentsOutputs;
+	}
+
+	void intraGroupReset() {
+		zeroVotes();
+		innerTrial->reset(true); // TODO
+	}
+
+	void prepareInput(float* netInput, int netId) 
+	{
+		if (innerTrial->currentNStep == 0) 
+		{
+			std::fill(netInput, netInput + nAgents * (channelSize + innerTrial->netOutSize), 0.0f);
+			return;
+		}
+
+		int stride = channelSize + innerTrial->netOutSize;
+		for (int j = 1; j < nAgents; j++) {
+			float* first = agentsOutputs[(netId+j)%nAgents];
+			std::copy(first, first + stride, netInput + (j-1) * stride);
+		}
+
+	}
+
+	void step() 
+	{
+		// fill votes:
+		std::fill(votes.get(), votes.get() + nAgents, 0.0f);
+		for (int i = 0; i < nAgents; i++) {
+
+			float* agentVotePtr = &agentsOutputs[i][innerTrial->netOutSize + channelSize];
+
+			// softmax
+			float Z = 0.0f;
+			for (int j = 0; j < nAgents-1; j++) {
+				agentVotePtr[j] = expf(agentVotePtr[j]);
+				Z += agentVotePtr[j];
+			}
+			Z = 1.0f / Z;
+
+			// distribution
+			for (int j = 0; j < nAgents-1; j++) {
+				votes[(i + j + 1) % nAgents] += agentVotePtr[j] * Z;
+			}
+		}
+
+		int iMax = -1;
+		float vMax = 0.0f;
+		for (int i = 0; i < nAgents; i++) 
+		{
+			if (votes[i] > vMax) {
+				vMax = votes[i];
+				iMax = i;
+			}
+		}
+
+		if (innerTrial->currentNStep > voteDiscardPeriod) // TODO 5 is arbitrary.
+		{
+			for (int i = 0; i < nAgents; i++) {
+				accumulatedVotes[i] += votes[i];
+			}
+		}
+
+		innerTrial->step(agentsOutputs[iMax]);
+	};
 };
 
 // Used in trials that have a "positional" component to their output, RocketSIm for instance.
