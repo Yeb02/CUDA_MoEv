@@ -2,7 +2,8 @@
 
 #include "InternalConnexion_G.h"
 
-
+// set in main
+float InternalConnexion_G::decayParametersInitialValue = -1.0f;
 
 // Normal mutation in the space of log(half-life constant). m default value is .15f.
 inline float mutateDecayParam(float dp, float m) 
@@ -50,7 +51,7 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns) :
 
 	auto rand01 = [&s](float* vec) {
 		for (int i = 0; i < s; i++) {
-			vec[i] = mutateDecayParam(DECAY_PARAMETERS_INIT_BIAS, .4f); // Not default m for better initial spread.
+			vec[i] = mutateDecayParam(decayParametersInitialValue, .4f); // Not default m for better initial spread.
 		}
 	};
 

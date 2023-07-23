@@ -36,8 +36,6 @@
 #define SPARSE_MUTATION_AND_COMBINATIONS
 
 
-#define BASE_MUTATION_P 1.0f
-
 
 #define MODULATION_VECTOR_SIZE 1     // DO NOT CHANGE
 
@@ -46,16 +44,3 @@
 // be further away genetically than MAX_PHYLOGENETIC_DEPTH combinations and mutations. 
 // MUST BE >= 1
 #define MAX_PHYLOGENETIC_DEPTH 10
-
-
-// Positive integer value. Specimens whose phenotypic distance to the primary parent are below it are not used for combination.
-// MUST BE >= 1
-#define CONSANGUINITY_DISTANCE 3
-
-
-// parameters that have values in the range [0,1] are initialized with mean DECAY_PARAMETERS_BIAS
-// These parameters (denoted µ) are typically used in exponential moving average updates, i.e.
-// X(t+1) = X(t) * (1-µ)  +  µ * ....
-#define DECAY_PARAMETERS_INIT_BIAS .2f
-
-

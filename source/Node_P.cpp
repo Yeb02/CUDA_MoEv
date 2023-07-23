@@ -119,6 +119,31 @@ void Node_P::forward(bool firstCall) {
 		for (int i = 0; i < nl; i++) {
 			int lineOffset = i * nc;
 
+			// 6 and 7, testing in front but can be in the back. If in the back, the 
+			// if (firstCall) is no longer necessary. But recommended ?
+			if (!firstCall) [[likely]]
+			{
+				for (int j = 0; j < nc; j++) {
+					int matID = lineOffset + j;
+
+					// 6:  
+					// inputArray[j] - inputArray_avg[j] does not depend on the line and can therefore be precomputed 
+					// (here each substraction is computed redundantly nLines times.)
+					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
+						//(inputArray[j] - inputArray_avg[j]) *
+						//(A[matID] * (dA[i] - dA_avg[i]) + B[matID] * dA[i] + C[matID] * sqrtf(abs(dA[i])) );
+						//(A[matID] * dA[i] + B[matID] * dA_avg[i]) *
+						//(1.0f + C[matID] * H[matID]); // bof bof
+					    (A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]);
+
+
+					// 7:
+					H[matID] += E[matID] * totalM[0];
+					H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
+				}
+			}
+
+
 			// 0:
 			float preSynAct = 0.0f; 
 			for (int j = 0; j < nc; j++) {
@@ -153,28 +178,9 @@ void Node_P::forward(bool firstCall) {
 			// 5:
 #ifdef STDP
 			// acc_src's magnitude decreases when there is a significant activation.
-			dA_preAvg[i] -= lambda[i] * powf(dA[i], 2.0f * 1.0f + 1.0f);
+			// * 4.0f because lambda is in [0,1] so the magnitude would be too limited. 
+			dA_preAvg[i] -= lambda[i] * powf(dA[i], 2.0f * 1.0f + 1.0f) * 4.0f;
 #endif
-
-			// 6 and 7
-			for (int j = 0; j < nc; j++) {
-				int matID = lineOffset + j;
-
-				// 6:  
-				// inputArray[j] - inputArray_avg[j] does not depend on the line and can therefore be precomputed 
-				// (here each substraction is computed redundantly nLines times.)
-				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-					//(inputArray[j] - inputArray_avg[j]) *
-					//(A[matID] * (dA[i] - dA_avg[i]) + B[matID] * dA[i] + C[matID] * sqrtf(abs(dA[i])) );
-					//(A[matID] * dA[i] + B[matID] * dA_avg[i])*
-					//(1.0f + C[matID] * H[matID]);
-					(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]);
-					
-
-				// 7:
-				H[matID] += E[matID] * totalM[0];
-				H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
-			}
 
 		}
 	};

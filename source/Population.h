@@ -54,6 +54,13 @@ struct PopulationEvolutionParameters {
 	// Could be a per layer factor, but there are already enough parameters.
 	float accumulatedFitnessDecay;
 
+	// In [0, 1]. All mutation probabilities are proportional to this value.
+	float baseMutationProbability;
+
+	// Positive integer value. Specimens whose phenotypic distance to the primary parent are below it
+	// are not used for combination. MUST BE >= 1
+	int consanguinityDistance;
+
 	//defaults. The fields that are not set here MUST be filled outside !
 	PopulationEvolutionParameters() {
 		maxNParents = 10;
@@ -215,8 +222,9 @@ public:
 		this->networkReplacedFraction = params.networkReplacedFraction;
 		this->voteValue = params.voteValue;
 		this->accumulatedFitnessDecay = params.accumulatedFitnessDecay;
+		this->baseMutationProbability = params.baseMutationProbability;
+		this->consanguinityDistance = params.consanguinityDistance;
 
-		//PhylogeneticNode::maxListSize = params.nParents;
 	}
 
 	
@@ -295,4 +303,6 @@ private:
 	float networkReplacedFraction;
 	float voteValue; 
 	float accumulatedFitnessDecay;
+	float baseMutationProbability;
+	int consanguinityDistance;
 };

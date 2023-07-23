@@ -110,7 +110,7 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 	{
 		// TODO better
 		//mutationsProbabilitiesPerLayer[l] = BASE_MUTATION_P * powf((float)modules[l][0]->getNParameters(), -.5f); 
-		mutationsProbabilitiesPerLayer[l] = BASE_MUTATION_P / log2f((float)modules[l][0]->getNParameters()); 
+		mutationsProbabilitiesPerLayer[l] = baseMutationProbability / log2f((float)modules[l][0]->getNParameters()); 
 	}
 
 	nNodesPerNetwork = 0;
@@ -413,7 +413,7 @@ Node_G* Population::createChild(PhylogeneticNode* primaryParent, int moduleLayer
 
 		rawWeights[0] = 1.0f; // = distanceValue(0)
 
-		for (int depth = CONSANGUINITY_DISTANCE; depth < MAX_PHYLOGENETIC_DEPTH; depth++) {
+		for (int depth = consanguinityDistance; depth < MAX_PHYLOGENETIC_DEPTH; depth++) {
 
 			float w = distanceValue((float) depth);
 			std::fill(rawWeights.begin() + (int)parents.size(), rawWeights.end(), w);

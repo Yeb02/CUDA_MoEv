@@ -20,13 +20,18 @@ void InternalConnexion_P::zeroE() {
 
 void InternalConnexion_P::randomInitH()
 {
-	float normalizator = .3f * powf((float)type->nColumns, -.5f); // Xavier or He ? No backprop so sticking with He
+	
 	int s = type->nLines * type->nColumns;
+	if (s == 0) return;
+
+	// Xavier or Kaiming ? No backprop so sticking with Kaiming
+	float normalizator = .3f * powf((float)type->nColumns, -.5f); 
 
 	for (int i = 0; i < s; i++) {
 
-		H[i] = .2f * (UNIFORM_01 - .5f);
-		//H[i] = NORMAL_01 * normalizator;
+		//H[i] = normalizator * (float)(i%2);
+		//H[i] = .2f * (UNIFORM_01 - .5f); // Risi Najarro
+		H[i] = NORMAL_01 * normalizator;
 
 	}
 }

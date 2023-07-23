@@ -14,6 +14,7 @@ inline float mutateDecayParam(float dp, float m = .15f);
 
 struct InternalConnexion_G {
 
+	static float decayParametersInitialValue;
 
 	int nLines, nColumns;
 

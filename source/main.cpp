@@ -35,8 +35,8 @@ int main()
     RocketSim::Init((std::filesystem::path)"C:/Users/alpha/Bureau/RLRL/collisionDumper/x64/Release/collision_meshes");
 #endif
 
-    int channelSize = 1;
-    int nAgentsPerGroup = 2;
+    int channelSize = 2;
+    int nAgentsPerGroup = 3;
 
 #ifdef NO_GROUP
     nAgentsPerGroup = 1; // DO NOT EDIT
@@ -83,6 +83,8 @@ int main()
     outSizes[0] = groupTrial.innerTrial->netOutSize; // DO NOT EDIT
 #endif
 
+    InternalConnexion_G::decayParametersInitialValue = .2f;
+
     PopulationEvolutionParameters params;
     params.nSpecimens = 128 * nAgentsPerGroup; 
     params.nTrialsPerGroup = 2;
@@ -92,10 +94,12 @@ int main()
     params.outSizes = outSizes;
     params.nChildrenPerLayer = nChildrenPerLayer;
     params.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
-    params.moduleReplacedFractions = moduleReplacedFractions;
-    params.networkReplacedFraction = .2f;
-    params.voteValue = .3f;
-    params.accumulatedFitnessDecay = .9f;
+    params.moduleReplacedFractions = moduleReplacedFractions; //in [0,1]
+    params.networkReplacedFraction = .2f; //in [0,1]
+    params.voteValue = .3f; // > 0
+    params.accumulatedFitnessDecay = .9f; //in [0,1]
+    params.baseMutationProbability = 1.0f;//in [0,1]
+    params.consanguinityDistance = 1;  // MUST BE >= 1
 
 
     int nSteps = 10000;
