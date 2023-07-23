@@ -1,7 +1,9 @@
 #pragma once
 
 #include <vector>
+#include <iostream>
 #include "Random.h"
+#include "config.h"
 
 
 // The base virtual class which any trial should inherit from. 
@@ -67,6 +69,11 @@ struct GroupTrial
 
 	GroupTrial(Trial* t, int nAgents, int channelSize) : innerTrial(t), nAgents(nAgents), channelSize(channelSize)
 	{
+#ifndef NO_GROUP
+		if (nAgents <= 2) {
+			std::cout << "Warning: the use of a group trial requires at least 3 agents per group !" << std::endl;
+		}
+#endif
 		netInSize = innerTrial->netInSize + nAgents * (innerTrial->netOutSize + channelSize);
 		netOutSize = innerTrial->netOutSize + nAgents - 1 + channelSize;
 		votes = std::make_unique<float[]>(nAgents);
@@ -93,7 +100,7 @@ struct GroupTrial
 
 	void intraGroupReset() {
 		zeroVotes();
-		innerTrial->reset(true); // TODO
+		innerTrial->reset(false); // TODO
 	}
 
 	void prepareInput(float* netInput, int netId) 
@@ -105,9 +112,9 @@ struct GroupTrial
 		}
 
 		int stride = channelSize + innerTrial->netOutSize;
-		for (int j = 1; j < nAgents; j++) {
+		for (int j = 0; j < nAgents; j++) { // this assumes the agent sees its own output + channel
 			float* first = agentsOutputs[(netId+j)%nAgents];
-			std::copy(first, first + stride, netInput + (j-1) * stride);
+			std::copy(first, first + stride, netInput + j * stride);
 		}
 
 	}

@@ -137,57 +137,6 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	return *this;
 }
 
-InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
-{
-	READ_4B(nLines, is);
-	READ_4B(nColumns, is);
-
-	int s = nLines * nColumns;
-
-	eta = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(eta.get()), s * sizeof(float));
-	A = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(A.get()), s * sizeof(float));
-	B = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(B.get()), s * sizeof(float));
-	C = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(C.get()), s * sizeof(float));
-
-	s = nLines;
-
-	kappa = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(kappa.get()), s * sizeof(float));
-
-#ifdef STDP
-	STDP_mu = std::make_unique<float[]>(s);
-	STDP_lambda = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(STDP_mu.get()), s * sizeof(float));
-	is.read(reinterpret_cast<char*>(STDP_lambda.get()), s * sizeof(float));
-#endif
-}
-
-void InternalConnexion_G::save(std::ofstream& os) 
-{
-	WRITE_4B(nLines, os);
-	WRITE_4B(nColumns, os);
-
-	int s = nLines * nColumns;
-
-	os.write(reinterpret_cast<const char*>(eta.get()), s * sizeof(float));
-	os.write(reinterpret_cast<const char*>(A.get()), s * sizeof(float));
-	os.write(reinterpret_cast<const char*>(B.get()), s * sizeof(float));
-	os.write(reinterpret_cast<const char*>(C.get()), s * sizeof(float));
-	
-	s = nLines;
-
-	os.write(reinterpret_cast<const char*>(kappa.get()), s * sizeof(float));
-
-#ifdef STDP
-	os.write(reinterpret_cast<const char*>(STDP_mu.get()), s * sizeof(float));
-	os.write(reinterpret_cast<const char*>(STDP_lambda.get()), s * sizeof(float));
-#endif
-}
-
 void InternalConnexion_G::mutateFloats(float p) {
 
 	//param(t+1) = (b+a*N1)*param(t) + c*N2
@@ -245,4 +194,55 @@ void InternalConnexion_G::mutateFloats(float p) {
 	mutateDecayMatrix(STDP_mu.get());
 #endif
 
+}
+
+InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
+{
+	READ_4B(nLines, is);
+	READ_4B(nColumns, is);
+
+	int s = nLines * nColumns;
+
+	eta = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(eta.get()), s * sizeof(float));
+	A = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(A.get()), s * sizeof(float));
+	B = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(B.get()), s * sizeof(float));
+	C = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(C.get()), s * sizeof(float));
+
+	s = nLines;
+
+	kappa = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(kappa.get()), s * sizeof(float));
+
+#ifdef STDP
+	STDP_mu = std::make_unique<float[]>(s);
+	STDP_lambda = std::make_unique<float[]>(s);
+	is.read(reinterpret_cast<char*>(STDP_mu.get()), s * sizeof(float));
+	is.read(reinterpret_cast<char*>(STDP_lambda.get()), s * sizeof(float));
+#endif
+}
+
+void InternalConnexion_G::save(std::ofstream& os)
+{
+	WRITE_4B(nLines, os);
+	WRITE_4B(nColumns, os);
+
+	int s = nLines * nColumns;
+
+	os.write(reinterpret_cast<const char*>(eta.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(A.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(B.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(C.get()), s * sizeof(float));
+
+	s = nLines;
+
+	os.write(reinterpret_cast<const char*>(kappa.get()), s * sizeof(float));
+
+#ifdef STDP
+	os.write(reinterpret_cast<const char*>(STDP_mu.get()), s * sizeof(float));
+	os.write(reinterpret_cast<const char*>(STDP_lambda.get()), s * sizeof(float));
+#endif
 }

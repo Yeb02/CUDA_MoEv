@@ -139,11 +139,15 @@ void Node_P::forward(bool firstCall) {
 			dA_avg[i] = dA_avg[i] * (1.0f - kappa[i]) + dA[i] * kappa[i];
 
 			// 3:
+#ifdef STDP
 			dA[i] = tanhf(dA_preAvg[i]);
+#else
+			dA[i] = tanhf(preSynAct);
+#endif
 
 			// 4:
 			if (firstCall) [[unlikely]] {
-				std::copy(dA, dA + nl, dA_avg);
+				dA_avg[i] = dA[i];
 			}
 
 			// 5:
@@ -157,16 +161,19 @@ void Node_P::forward(bool firstCall) {
 				int matID = lineOffset + j;
 
 				// 6:  
-				// Does not depend on the line and can therefore be precomputed (here each substraction is computed
-				// nLines times.)
+				// inputArray[j] - inputArray_avg[j] does not depend on the line and can therefore be precomputed 
+				// (here each substraction is computed redundantly nLines times.)
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-					(inputArray[j] - inputArray_avg[j]) *
-					(A[matID] * dA[i] + B[matID] * dA_avg[i]) *
-					(1.0f + C[matID] * H[matID]);
+					//(inputArray[j] - inputArray_avg[j]) *
+					//(A[matID] * (dA[i] - dA_avg[i]) + B[matID] * dA[i] + C[matID] * sqrtf(abs(dA[i])) );
+					//(A[matID] * dA[i] + B[matID] * dA_avg[i]);
+					//(1.0f + C[matID] * H[matID]);
+					(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]);
+					
 
 				// 7:
 				H[matID] += E[matID] * totalM[0];
-				H[matID] = std::clamp(H[matID], -16.0f, 16.0f);
+				H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
 			}
 
 		}

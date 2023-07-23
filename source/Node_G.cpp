@@ -17,6 +17,7 @@ Node_G::Node_G(Node_G* n) {
 
 	inputSize = n->inputSize;
 	outputSize = n->outputSize;
+	nChildren = n->nChildren;
 
 	toChildren = n->toChildren;
 	toModulation = n->toModulation;
@@ -32,6 +33,25 @@ Node_G::Node_G(Node_G* n) {
 // Sparse version. TODO continuous (GPU enabled ?)
 Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 {
+	static const int proportionalParentPoolSize = 10 * 10; // TODO  Should be resolution * maxNParents (population's
+	static int proportionalParentPool[proportionalParentPoolSize]; 
+
+	float invWSum = 0.0f;
+	for (int i = 0; i < nParents; i++) 
+	{
+		invWSum += weights[i];
+	}
+	invWSum = 1.0f / invWSum;
+	int id = 0;
+	for (int i = 0; i < nParents; i++)
+	{
+		int* i0 = proportionalParentPool + id;
+		int stride = (int)((float)proportionalParentPoolSize * invWSum * weights[i]);
+		std::fill(i0, i0 + stride, i);
+		id += stride;
+	}
+	std::fill(proportionalParentPool+id, proportionalParentPool+ proportionalParentPoolSize, 0);
+
 	Node_G* child = new Node_G(parents[0]);
 
 	InternalConnexion_G** connexions = new InternalConnexion_G * [nParents];
@@ -58,18 +78,20 @@ Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 	};
 
 	// combines all connexions of the "connexions" array into childCo
-	auto combineConnexions = [connexions, nParents, &copyArrComponents, &copyMatComponents](InternalConnexion_G* childCo)
+	auto combineConnexions = [&](InternalConnexion_G* childCo)
 	{
 		int sMat = childCo->nLines * childCo->nColumns;
 		for (int i = 0; i < sMat; i++)
 		{
-			copyMatComponents(childCo, connexions[INT_0X(nParents)], i);
+			copyMatComponents(childCo, connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]], i);
+			//copyMatComponents(childCo, connexions[INT_0X(nParents)], i);
 		}
 
 		int sArr = childCo->nLines;
 		for (int i = 0; i < sArr; i++)
 		{
-			copyArrComponents(childCo, connexions[INT_0X(nParents)], i);
+			copyArrComponents(childCo, connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]], i);
+			//copyArrComponents(childCo, connexions[INT_0X(nParents)], i);
 		}
 	};
 

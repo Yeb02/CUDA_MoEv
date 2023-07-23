@@ -22,10 +22,13 @@
 // When defined, CPU functions replace CUDA kernels. Used for debugging purposes.
 #define NO_CUDA
 
-// When defined, presynaptic activities of complexNodes (topNode excepted) are an exponential moving average. Each node 
-// be it Modulation, complex, memory or output has an evolved parameter (STDP_decay) that parametrizes the average.
-// WARNING only compatible with N_ACTIVATIONS = 1, I havent implemented all the derivatives in complexNode_P::forward yet
-#define STDP
+// When defined, networks are evaluated individually (the group trial is ignored, only its innerTrial is used.)
+// Used for debugging purposes.
+#define NO_GROUP
+
+// When defined, presynaptic activities of complexNodes (topNode excepted) are a decaying sum of past inputs. This
+// sums decays with time and also as a function of the magnitude of the postsynaptic activation.
+//#define STDP
 
 // Mutations consist in adding a sparse gaussian vector to the network, whose components have
 // significant values. Combination replaces each parameter with one of its parents, sampled uniformly
@@ -33,7 +36,7 @@
 #define SPARSE_MUTATION_AND_COMBINATIONS
 
 
-#define BASE_MUTATION_P .2f
+#define BASE_MUTATION_P 1.0f
 
 
 #define MODULATION_VECTOR_SIZE 1     // DO NOT CHANGE

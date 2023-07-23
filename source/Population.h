@@ -20,7 +20,7 @@ struct PopulationEvolutionParameters {
 
 	// Minimum at 1. If = 1, mutated clone of the parent. No explicit maximum, but bounded by nSpecimens, 
 	// and MAX_MATING_DEPTH implicitly. Cost O( n log(n) ).
-	int nParents;
+	int maxNParents;
 
 	// How many consecutive trials a group of Networks experiences, between 2 shuffles of the networks array. 
 	int nTrialsPerGroup;
@@ -56,7 +56,7 @@ struct PopulationEvolutionParameters {
 
 	//defaults. The fields that are not set here MUST be filled outside !
 	PopulationEvolutionParameters() {
-		nParents = 10;
+		maxNParents = 10;
 		nTrialsPerGroup = 5;
 		nLayers = 1;
 	}
@@ -157,7 +157,7 @@ struct PhylogeneticNode
 		updateDepth(-1);
 	}
 
-
+	// returns true if the list is full and we should exit the recursion, false otherwise.
 	bool fillList(std::vector<int>& list, int currentDistance, int targetDistance, PhylogeneticNode* prevNode, int maxListSize) {
 		if (currentDistance == targetDistance) 
 		{
@@ -165,22 +165,22 @@ struct PhylogeneticNode
 			{
 				list.push_back(modulePosition);
 			}
-			return list.size() != maxListSize;
+			return list.size() == maxListSize;
 		}
 
 		if (parent != prevNode && parent != nullptr) {
-			if (!parent->fillList(list, currentDistance + 1, targetDistance, this, maxListSize)) {
-				return false;
+			if (parent->fillList(list, currentDistance + 1, targetDistance, this, maxListSize)) {
+				return true;
 			}
 		}
 
 		for (int i = 0; i < children.size(); i++) {
 			if (children[i] == prevNode) continue;
-			if (!children[i]->fillList(list, currentDistance + 1, targetDistance, this, maxListSize)) {
-				return false;
+			if (children[i]->fillList(list, currentDistance + 1, targetDistance, this, maxListSize)) {
+				return true;
 			}
 		}
-		return true;
+		return false;
 	}
 };
 
@@ -205,7 +205,7 @@ public:
 
 		this->nSpecimens = params.nSpecimens;
 		this->nTrialsPerGroup = params.nTrialsPerGroup;
-		this->nParents = params.nParents;
+		this->maxNParents = params.maxNParents;
 		this->nLayers = params.nLayers;
 		this->inSizes = params.inSizes;
 		this->outSizes = params.outSizes;
@@ -285,7 +285,7 @@ private:
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
 	int nSpecimens;
 	int nTrialsPerGroup;
-	int nParents;
+	int maxNParents;
 	int nLayers;
 	int* inSizes;
 	int* outSizes;

@@ -92,6 +92,8 @@ void Network::preTrialReset() {
 	std::fill(inputArray.get(), inputArray.get() + inputArraySize, 0.0f);
 
 	topNodeP->preTrialReset();
+
+	std::fill(topNodeP->totalM, topNodeP->totalM + MODULATION_VECTOR_SIZE, 1.0f);
 };
 
 
@@ -99,10 +101,10 @@ void Network::step(float* input) {
 
 	// float* kappa = topNodeP  aie aie aie TODO TODO TODO PRIORITAIRE
 	for (int i = 0; i < inS[0]; i++) {
-		topNodeP->inputArray_avg[i] = topNodeP->inputArray_avg[i]*.9f + topNodeP->inputArray[i] * .1f;
+		topNodeP->inputArray_avg[i] = topNodeP->inputArray_avg[i]*.8f + topNodeP->inputArray[i] * .2f;
 	}
 
-	bool firstCall = nInferencesOverTrial == 0;
+	bool firstCall = (nInferencesOverTrial == 0);
 
 	if (firstCall) [[unlikely]]
 	{
@@ -111,7 +113,13 @@ void Network::step(float* input) {
 
 	std::copy(input, input+inS[0], topNodeP->inputArray);
 
-	std::fill(topNodeP->totalM, topNodeP->totalM + MODULATION_VECTOR_SIZE, 0.0f);
+	// On cartpole, the 0.0f version yields the best results. But I think that both
+	// should be commented on a real trial, and replaced by the line below.
+	//std::fill(topNodeP->totalM, topNodeP->totalM + MODULATION_VECTOR_SIZE, 1.0f);
+	//std::fill(topNodeP->totalM, topNodeP->totalM + MODULATION_VECTOR_SIZE, 0.0f); 
+	// Replaced by:
+	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) topNodeP->totalM[i] *= .7f;
+
 
 	topNodeP->forward(firstCall);
 

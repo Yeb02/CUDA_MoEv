@@ -35,8 +35,12 @@ int main()
     RocketSim::Init((std::filesystem::path)"C:/Users/alpha/Bureau/RLRL/collisionDumper/x64/Release/collision_meshes");
 #endif
 
-    int channelSize = 2;
-    int nAgentsPerTrial = 4;
+    int channelSize = 1;
+    int nAgentsPerGroup = 2;
+
+#ifdef NO_GROUP
+    nAgentsPerGroup = 1; // DO NOT EDIT
+#endif
 
     Trial* innerTrial;
 
@@ -57,20 +61,32 @@ int main()
 #endif
     }
 
-    GroupTrial groupTrial(innerTrial, nAgentsPerTrial, channelSize);
+    GroupTrial groupTrial(innerTrial, nAgentsPerGroup, channelSize);
 
  
     const int nLayers = 3;
     int inSizes[nLayers] = { groupTrial.netInSize, 8, 4};
     int outSizes[nLayers] = { groupTrial.netOutSize, 7, 3};
     int nChildrenPerLayer[nLayers] = {2, 1, 0};
-    int nEvolvedModulesPerLayer[nLayers] = {32, 32, 32};
+    int nEvolvedModulesPerLayer[nLayers] = {64, 128, 128};
     float moduleReplacedFractions[nLayers] = {.3f, .3f, .3f};
 
+    //const int nLayers = 1;
+    //int inSizes[nLayers] = { groupTrial.netInSize};
+    //int outSizes[nLayers] = { groupTrial.netOutSize};
+    //int nChildrenPerLayer[nLayers] = { 0 };
+    //int nEvolvedModulesPerLayer[nLayers] = { 64 };
+    //float moduleReplacedFractions[nLayers] = { .3f };
+
+#ifdef NO_GROUP
+    inSizes[0] = groupTrial.innerTrial->netInSize;   // DO NOT EDIT
+    outSizes[0] = groupTrial.innerTrial->netOutSize; // DO NOT EDIT
+#endif
+
     PopulationEvolutionParameters params;
-    params.nSpecimens = 16 * nAgentsPerTrial; //16 -> 512 in most cases;
-    params.nTrialsPerGroup = 3;
-    params.nParents = 10;
+    params.nSpecimens = 128 * nAgentsPerGroup; 
+    params.nTrialsPerGroup = 2;
+    params.maxNParents = 10;
     params.nLayers = nLayers;
     params.inSizes = inSizes;
     params.outSizes = outSizes;

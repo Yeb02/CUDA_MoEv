@@ -3,7 +3,7 @@
 #include <iostream>
 #include <algorithm> // std::sort
 #include <fstream>   // saving (serialized)
-#include <chrono>    // time since 1970 for gross perf. measures
+#include <chrono>    // time since 1970 for coarse perf. measures
 
 #include "Population.h"
 
@@ -134,15 +134,15 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 
 	groupFitnesses = new float[nGroups * nTrialsPerGroup];
 
-	networks = new Network * [nSpecimens];
+	networks = new Network*[nSpecimens];
 	for (int i = 0; i < nSpecimens; i++) {
 		networks[i] = new Network(inSizes, outSizes, nChildrenPerLayer, nLayers, nTrialsPerGroup);
 		createPhenotype(networks[i]);
 	}
 
 	currentModuleReplacementTreshold = std::make_unique<float[]>(nLayers);
-	for (int l = 0; l < nLayers; l++) currentModuleReplacementTreshold[l] = -5.0f;  // TODO arbitrary
-	currentNetworkReplacementTreshold = -5.0f;
+	for (int l = 0; l < nLayers; l++) currentModuleReplacementTreshold[l] = -.7f;  // TODO arbitrary
+	currentNetworkReplacementTreshold = -.7f;
 }
 
 
@@ -171,29 +171,39 @@ Population::~Population()
 	}
 }
 
+
 void Population::evolve(int nSteps) 
 {
 	for (int i = 0; i < nSteps; i++) 
 	{
+		
+		for (int j = 0; j < 3; j++)
+		{
+			// Sort networks by age
+			auto f = [](Network* n1, Network* n2) {return n1->nExperiencedTrials > n2->nExperiencedTrials; };
+			std::sort(networks, networks + nSpecimens, f);
 
-		// Sort networks by age
-		auto f = [](Network* n1, Network* n2) {return n1->nExperiencedTrials > n2->nExperiencedTrials; };
-		std::sort(networks, networks + nSpecimens, f);
+			for (int k = 0; k < 3; k++)
+			{
+				// Shuffle networks inside each age group
+				for (int i = 0; i < groupTrial->nAgents; i++) {
+					std::shuffle(networks + i * nGroups, networks + (i + 1) * nGroups, generator);
+				}
 
-		// Shuffle networks inside each age group
-		for (int i = 0; i < groupTrial->nAgents; i++) {
-			std::shuffle(networks + i * nGroups, networks + (i + 1) * nGroups, generator);
+				std::cout << "Step " << i << " ";
+
+				evaluateGroups();
+			}
+
+			replaceNetworks();
 		}
 
-		evaluateGroups();
-
 		replaceModules();
-
-		replaceNetworks();
 
 		deleteUnusedModules();
 	} 
 }
+
 
 void Population::evaluateGroups()
 {
@@ -234,6 +244,10 @@ void Population::evaluateGroups()
 			
 			while (!groupTrial->innerTrial->isTrialOver) 
 			{
+#ifdef NO_GROUP
+				nets[0]->step(groupTrial->innerTrial->observations.data());
+				groupTrial->innerTrial->step(outputs[0]);
+#else
 				std::copy(
 					groupTrial->innerTrial->observations.begin(),
 					groupTrial->innerTrial->observations.end(),
@@ -245,6 +259,7 @@ void Population::evaluateGroups()
 					nets[j]->step(netInput);
 				}
 				groupTrial->step();
+#endif
 			}
 
 			groupTrial->normalizeVotes();
@@ -302,7 +317,11 @@ void Population::evaluateGroups()
 			float gf = groupFitnesses[j * nGroups + networks[i]->groupID];
 			float v = networks[i]->perTrialVotes[j];
 
+#ifdef NO_GROUP
+			f += gf;
+#else
 			f += (1.0f + voteValue * (gf>0?1.f:-1.f) * v) * gf;
+#endif
 		}
 		f /= (float)nTrialsPerGroup;
 
@@ -317,6 +336,7 @@ void Population::evaluateGroups()
 	for (int l = 0; l < nLayers; l++) {
 		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
 			Node_G* m = modules[l][i];
+			if (m->nTempFitnessAccumulations == 0) continue;
 			m->tempFitnessAccumulator /= (float) m->nTempFitnessAccumulations;
 			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;		
 		}
@@ -327,9 +347,11 @@ void Population::evaluateGroups()
 	delete[] netInput;
 }
 
+
 void Population::createPhenotype(Network* net) 
 {
 	Node_G** genotype = new Node_G * [nNodesPerNetwork]; // ownership is transferred to the network.
+
 
 	int id = 0;
 	for (int l = 0; l < nLayers; l++) {
@@ -352,7 +374,7 @@ Node_G* Population::createChild(PhylogeneticNode* primaryParent, int moduleLayer
 	parents.push_back(primaryParent->modulePosition);
 	
 	std::vector<float> rawWeights;
-	rawWeights.resize(nParents);
+	rawWeights.resize(maxNParents);
 
 	// fill parents, and weights are initialized with a function of the phylogenetic distance.
 	{
@@ -363,16 +385,18 @@ Node_G* Population::createChild(PhylogeneticNode* primaryParent, int moduleLayer
 			return powf(1.0f+d, -0.6f);
 		};
 
+		rawWeights[0] = 1.0f; // = distanceValue(0)
+
 		for (int depth = CONSANGUINITY_DISTANCE; depth < MAX_PHYLOGENETIC_DEPTH; depth++) {
 
 			float w = distanceValue((float) depth);
 			std::fill(rawWeights.begin() + (int)parents.size(), rawWeights.end(), w);
 
-			primaryParent->fillList(parents, 0, depth, nullptr, nParents);
+			primaryParent->fillList(parents, 0, depth, nullptr, maxNParents);
 
 			// parents.size() == nParents can happen if there were exactly as many parents 
 			// as there was room left in the array. This does not set listFilled = true.
-			if (listFilled || parents.size() == nParents) break; 
+			if (listFilled || parents.size() == maxNParents) break;
 		}
 	}
 
@@ -417,8 +441,16 @@ Node_G* Population::createChild(PhylogeneticNode* primaryParent, int moduleLayer
 
 void Population::deleteUnusedModules()
 {
+	for (int i = 0; i < toBeDestroyedModules.size(); i++) {
+		if (toBeDestroyedModules[i]->nUsesInNetworks == 0) {
+			delete toBeDestroyedModules[i];
+
+			// there may be cases where delete does not already do it :
+			toBeDestroyedModules[i] = nullptr; 
+		}
+	}
 	auto eraseUnused = [](Node_G* n) {
-		return n->nUsesInNetworks == 0;
+		return n == nullptr;
 	};
 
 	std::erase_if(toBeDestroyedModules, eraseUnused);
@@ -446,7 +478,7 @@ void Population::replaceNetworks()
 		createPhenotype(networks[i]);
 	}
 
-	if ((float)nReplacements / (float)nSpecimens < networkReplacedFraction) 
+	if ((float)nReplacements / (float)nSpecimens > networkReplacedFraction) 
 	{
 		currentNetworkReplacementTreshold *= 1.0f / .8f; // TODO arbitrary
 	}
@@ -454,6 +486,7 @@ void Population::replaceNetworks()
 		currentNetworkReplacementTreshold *= .8f;
 	}
 }
+
 
 void Population::replaceModules() {
 	uint64_t start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -464,8 +497,8 @@ void Population::replaceModules() {
 		{
 			float invProbaSum = 0.0f;
 
-			for (int i = 0; i < nSpecimens; i++) {
-				float pRaw = modules[l][i]->lifetimeFitness - currentModuleReplacementTreshold[l];
+			for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
+				float pRaw = modules[l][i]->lifetimeFitness - 0.0f;
 				if (pRaw > 0) probabilities[i] = pRaw;
 				else probabilities[i] = 0.0f;
 
@@ -488,8 +521,7 @@ void Population::replaceModules() {
 				modules[l][i]->isInModuleArray = false;
 				toBeDestroyedModules.push_back(modules[l][i]);
 
-				phylogeneticTrees[l][i]->modulePosition = -1;
-				phylogeneticTrees[l][i]->updateDepth(-1);
+				phylogeneticTrees[l][i]->onModuleDestroyed();
 
 				int parentID = binarySearch(probabilities.get(), UNIFORM_01, nEvolvedModulesPerLayer[l]);
 
@@ -498,18 +530,20 @@ void Population::replaceModules() {
 				modules[l][i]->isInModuleArray = true;
 
 				phylogeneticTrees[l][i] = new PhylogeneticNode(phylogeneticTrees[l][parentID], i);
+
+				nReplacements++;
 			}
 		}
-
-		if ((float)nReplacements / (float)nEvolvedModulesPerLayer[l] < moduleReplacedFractions[l])
+		//std::cout << (float)nReplacements / (float)nEvolvedModulesPerLayer[l] << " ";
+		if ((float)nReplacements / (float)nEvolvedModulesPerLayer[l] > moduleReplacedFractions[l])
 		{
-			currentNetworkReplacementTreshold *= 1.0f / .8f;
+			currentModuleReplacementTreshold[l] *= 1.0f / .8f; 
 		}
 		else {
-			currentNetworkReplacementTreshold *= .8f;
+			currentModuleReplacementTreshold[l] *= .8f;
 		}
 	}
-
+	//std::cout << std::endl;
 
 	uint64_t stop = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	//std::cout << "Modules creation took " << stop - start << " ms." << std::endl;
