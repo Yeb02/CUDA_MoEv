@@ -28,7 +28,7 @@
 
 // When defined, presynaptic activities of complexNodes (topNode excepted) are a decaying sum of past inputs. This
 // sums decays with time and also as a function of the magnitude of the postsynaptic activation.
-//#define STDP
+#define STDP
 
 // Mutations consist in adding a sparse gaussian vector to the network, whose components have
 // significant values. Combination replaces each parameter with one of its parents, sampled uniformly

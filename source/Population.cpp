@@ -108,7 +108,9 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 	mutationsProbabilitiesPerLayer = std::make_unique<float[]>(nLayers);
 	for (int l = 0; l < nLayers; l++)
 	{
-		mutationsProbabilitiesPerLayer[l] = BASE_MUTATION_P * powf((float)modules[l][0]->getNParameters(), -.5f);
+		// TODO better
+		//mutationsProbabilitiesPerLayer[l] = BASE_MUTATION_P * powf((float)modules[l][0]->getNParameters(), -.5f); 
+		mutationsProbabilitiesPerLayer[l] = BASE_MUTATION_P / log2f((float)modules[l][0]->getNParameters()); 
 	}
 
 	nNodesPerNetwork = 0;
@@ -174,25 +176,38 @@ Population::~Population()
 
 void Population::evolve(int nSteps) 
 {
+	// increasing these 2 parameters refines the fitness computations, at the cost of compute.
+	// (linear in nShuffles * nNetworksSteps)
+
+#ifdef NO_GROUP
+	const int nShuffles = 1; // DO NOT CHANGE
+#else 
+	const int nShuffles = 5;
+#endif
+
+	const int nNetworksSteps = 5;
+
 	for (int i = 0; i < nSteps; i++) 
 	{
 		
-		for (int j = 0; j < 3; j++)
+		for (int j = 0; j < nNetworksSteps; j++)
 		{
 			// Sort networks by age
 			auto f = [](Network* n1, Network* n2) {return n1->nExperiencedTrials > n2->nExperiencedTrials; };
 			std::sort(networks, networks + nSpecimens, f);
 
-			for (int k = 0; k < 3; k++)
+
+			for (int k = 0; k < nShuffles; k++)
 			{
 				// Shuffle networks inside each age group
 				for (int i = 0; i < groupTrial->nAgents; i++) {
 					std::shuffle(networks + i * nGroups, networks + (i + 1) * nGroups, generator);
 				}
 
-				std::cout << "Step " << i << " ";
+				bool log = (k + j) == 0;
+				if (log) std::cout << "Step " << i << " ";
 
-				evaluateGroups();
+				evaluateGroups(log); // TODO would be interesting at each step in case of grouped trials.
 			}
 
 			replaceNetworks();
@@ -205,7 +220,7 @@ void Population::evolve(int nSteps)
 }
 
 
-void Population::evaluateGroups()
+void Population::evaluateGroups(bool log)
 {
 	Network** nets = new Network*[groupTrial->nAgents];
 
@@ -276,17 +291,28 @@ void Population::evaluateGroups()
 	}
 
 	// monitoring
-	{
+	if (log) {
 		float avgF = 0.0f;
 		float maxF = -100000.0f;
+		float* avgGroupF = new float[nGroups];
+		std::fill(avgGroupF, avgGroupF + nGroups, 0.0f);
 		for (int i = 0; i < nTrialsPerGroup * nGroups; i++)
 		{
 			if (groupFitnesses[i] > maxF) maxF = groupFitnesses[i];
 			avgF += groupFitnesses[i];
+			avgGroupF[i % nGroups] += groupFitnesses[i];
 		}
 		avgF /= (float)(nTrialsPerGroup * nGroups);
+		float maxAvgGroupF = -100000.0f;
+		for (int i = 0; i < nGroups; i++)
+		{
+			if (maxAvgGroupF < avgGroupF[i]) maxAvgGroupF = avgGroupF[i];
+		}
+		maxAvgGroupF /= nTrialsPerGroup;
+		delete[] avgGroupF;
 
-		std::cout << " Avg raw group fitness: " << avgF << ", max group fitness : " << maxF << std::endl;
+		// scores are per group.
+		std::cout << " Over groups, avg avg score: " << avgF << ", best avg score " << maxAvgGroupF << ", best score : " << maxF << std::endl;
 	}
 
 

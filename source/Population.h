@@ -225,7 +225,7 @@ public:
 private:
 	GroupTrial* groupTrial;
 
-	// the fitness per group per trial.
+	// the fitness per group per trial. (1 line = 1 trial)
 	float* groupFitnesses;
 
 	// Used to hold the probabilities over networks or modules when creating offsprings. Here to spare
@@ -267,7 +267,7 @@ private:
 
 	// Each group experiences nTrialsPerGroup trials, and the network and module 
 	// fitnesses are updated according to the results.
-	void evaluateGroups();
+	void evaluateGroups(bool log);
 
 
 	void replaceNetworks();

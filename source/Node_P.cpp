@@ -100,10 +100,10 @@ void Node_P::forward(bool firstCall) {
 		float* C = icp.type->C.get();
 		float* eta = icp.type->eta.get();
 
-		float* kappa = icp.type->kappa.get() + offset;
+		float* kappa = icp.type->kappa.get();
 #ifdef STDP
-		float* mu = icp.type->STDP_mu.get() + offset;
-		float* lambda = icp.type->STDP_lambda.get() + offset;
+		float* mu = icp.type->STDP_mu.get();
+		float* lambda = icp.type->STDP_lambda.get();
 #endif
 		
 		float* dA = destinationArray + offset;
@@ -166,7 +166,7 @@ void Node_P::forward(bool firstCall) {
 				E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
 					//(inputArray[j] - inputArray_avg[j]) *
 					//(A[matID] * (dA[i] - dA_avg[i]) + B[matID] * dA[i] + C[matID] * sqrtf(abs(dA[i])) );
-					//(A[matID] * dA[i] + B[matID] * dA_avg[i]);
+					//(A[matID] * dA[i] + B[matID] * dA_avg[i])*
 					//(1.0f + C[matID] * H[matID]);
 					(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]);
 					
@@ -185,8 +185,13 @@ void Node_P::forward(bool firstCall) {
 		forwardAndLocalUpdates(toModulation, type->outputSize);
 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			inputArray[i + type->inputSize] = destinationArray[i + type->outputSize];
-			totalM[i] += inputArray[i + type->inputSize];
+			totalM[i] += destinationArray[i + type->outputSize];
+			inputArray[i + type->inputSize] = totalM[i];
+
+			// TODO this way of doing things could mess up the hebbian update, (or not !)
+			// if it is the case use :
+			//inputArray[i + type->inputSize] = destinationArray[i + type->outputSize];
+			//totalM[i] += inputArray[i + type->inputSize];
 		}
 	}
 
@@ -212,11 +217,11 @@ void Node_P::forward(bool firstCall) {
 				children[i].inputArray_avg
 			);
 
-			std::copy(
-				totalM,
-				totalM + MODULATION_VECTOR_SIZE,
-				children[i].totalM
-			);
+			
+			for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
+				children[i].totalM[j] = totalM[j] * .7f;  // TODO .7 is arbitrary.
+			}
+			
 
 			id += children[i].type->inputSize;
 		}
@@ -251,8 +256,8 @@ void Node_P::forward(bool firstCall) {
 		forwardAndLocalUpdates(toModulation, type->outputSize);
 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			inputArray[i + type->inputSize] = destinationArray[i + type->outputSize];
-			totalM[i] += inputArray[i + type->inputSize];
+			totalM[i] += destinationArray[i + type->outputSize];
+			inputArray[i + type->inputSize] = totalM[i];
 		}
 	}
 

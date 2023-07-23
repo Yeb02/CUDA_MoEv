@@ -33,8 +33,8 @@ Node_G::Node_G(Node_G* n) {
 // Sparse version. TODO continuous (GPU enabled ?)
 Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 {
-	static const int proportionalParentPoolSize = 10 * 10; // TODO  Should be resolution * maxNParents (population's
-	static int proportionalParentPool[proportionalParentPoolSize]; 
+	const int proportionalParentPoolSize = 10 * 10; // TODO  Should be resolution * maxNParents (population's
+	int proportionalParentPool[proportionalParentPoolSize]; 
 
 	float invWSum = 0.0f;
 	for (int i = 0; i < nParents; i++) 
@@ -57,41 +57,29 @@ Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 	InternalConnexion_G** connexions = new InternalConnexion_G * [nParents];
 
 
-	// copies parentCo's  matrices id-th components into childCo's matrices
-	auto copyMatComponents = [](InternalConnexion_G* parentCo, InternalConnexion_G* childCo, int id)
-	{
-		childCo->A[id] = parentCo->A[id];
-		childCo->B[id] = parentCo->B[id];
-		childCo->C[id] = parentCo->C[id];
-		childCo->eta[id] = parentCo->eta[id];
-	};
-
-	// copies parentCo's  arrays id-th components into childCo's array
-	auto copyArrComponents = [](InternalConnexion_G* parentCo, InternalConnexion_G* childCo, int id)
-	{
-		childCo->kappa[id] = parentCo->kappa[id];
-
-#ifdef STDP
-		childCo->STDP_mu[id] = parentCo->STDP_mu[id];
-		childCo->STDP_lambda[id] = parentCo->STDP_lambda[id];
-#endif
-	};
-
 	// combines all connexions of the "connexions" array into childCo
 	auto combineConnexions = [&](InternalConnexion_G* childCo)
 	{
 		int sMat = childCo->nLines * childCo->nColumns;
 		for (int i = 0; i < sMat; i++)
 		{
-			copyMatComponents(childCo, connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]], i);
-			//copyMatComponents(childCo, connexions[INT_0X(nParents)], i);
+			//childCo->A[id] = connexions[INT_0X(nParents)]->A[id];
+
+			childCo->A[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->A[i];
+			childCo->B[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->B[i];
+			childCo->C[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->C[i];
+			childCo->eta[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->eta[i];
 		}
 
 		int sArr = childCo->nLines;
 		for (int i = 0; i < sArr; i++)
 		{
-			copyArrComponents(childCo, connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]], i);
-			//copyArrComponents(childCo, connexions[INT_0X(nParents)], i);
+			childCo->kappa[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->kappa[i];
+
+#ifdef STDP
+			childCo->STDP_mu[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->STDP_mu[i];
+			childCo->STDP_lambda[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->STDP_lambda[i];
+#endif
 		}
 	};
 
