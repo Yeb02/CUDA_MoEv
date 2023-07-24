@@ -1,6 +1,5 @@
+#pragma once
 #include "Node_P.h"
-
-
 
 Node_P::Node_P(Node_G* _type, Node_G** nodes, int i, int iC, int* nC, int tNC) :
 	type(_type),
@@ -78,6 +77,7 @@ void Node_P::preTrialReset() {
 }
 
 
+
 void Node_P::forward(bool firstCall) {
 	
 	// Modulation could be done on CPU while the GPU handles the bulk of the work. TODO benchmark to
@@ -121,7 +121,7 @@ void Node_P::forward(bool firstCall) {
 
 			// 6 and 7, testing in front but can be in the back. If in the back, the 
 			// if (firstCall) is no longer necessary. But recommended ?
-			if (!firstCall) [[likely]]
+			if (!firstCall && true) [[likely]]
 			{
 				for (int j = 0; j < nc; j++) {
 					int matID = lineOffset + j;
@@ -130,11 +130,12 @@ void Node_P::forward(bool firstCall) {
 					// inputArray[j] - inputArray_avg[j] does not depend on the line and can therefore be precomputed 
 					// (here each substraction is computed redundantly nLines times.)
 					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-						//(inputArray[j] - inputArray_avg[j]) *
+						abs(inputArray[j] - inputArray_avg[j]) * inputArray[j] * 10.0f *
+						(A[matID] * dA[i] + B[matID] * dA_avg[i] + C[matID]);
 						//(A[matID] * (dA[i] - dA_avg[i]) + B[matID] * dA[i] + C[matID] * sqrtf(abs(dA[i])) );
 						//(A[matID] * dA[i] + B[matID] * dA_avg[i]) *
 						//(1.0f + C[matID] * H[matID]); // bof bof
-					    (A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]);
+						//(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]);
 
 
 					// 7:
@@ -182,6 +183,27 @@ void Node_P::forward(bool firstCall) {
 			dA_preAvg[i] -= lambda[i] * powf(dA[i], 2.0f * 1.0f + 1.0f) * 4.0f;
 #endif
 
+			if (false) 
+			{
+				for (int j = 0; j < nc; j++) {
+					int matID = lineOffset + j;
+
+					// 6:  
+					// inputArray[j] - inputArray_avg[j] does not depend on the line and can therefore be precomputed 
+					// (here each substraction is computed redundantly nLines times.)
+					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
+						//(inputArray[j] - inputArray_avg[j]) *
+						//(A[matID] * (dA[i] - dA_avg[i]) + B[matID] * dA[i] + C[matID] * sqrtf(abs(dA[i])) );
+						//(A[matID] * dA[i] + B[matID] * dA_avg[i]) *
+						//(1.0f + C[matID] * H[matID]); // bof bof
+						(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]);
+
+
+					// 7:
+					H[matID] += E[matID] * totalM[0];
+					H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
+				}
+			}
 		}
 	};
 

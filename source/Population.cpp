@@ -94,6 +94,12 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 		}
 	}
 
+	groupFitnesses = new float[nGroups * nTrialsPerGroup];
+
+	currentModuleReplacementTreshold = std::make_unique<float[]>(nLayers);
+	for (int l = 0; l < nLayers; l++) currentModuleReplacementTreshold[l] = -.7f;  // TODO arbitrary
+	currentNetworkReplacementTreshold = -.7f;
+
 
 	int probabilitiesSize = nSpecimens;
 	for (int l = 0; l < nLayers; l++)
@@ -114,8 +120,8 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 	}
 
 	nNodesPerNetwork = 0;
-	inputArraySize = 0;
-	destinationArraySize = 0;
+	int inputArraySize = 0;
+	int destinationArraySize = 0;
 	nModulesPerNetworkLayer = std::make_unique<int[]>(nLayers);
 	nModulesPerNetworkLayer[0] = 1;
 	for (int l = 0; l < nLayers; l++)
@@ -134,17 +140,27 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 		nNodesPerNetwork += nModulesPerNetworkLayer[l];
 	}
 
-	groupFitnesses = new float[nGroups * nTrialsPerGroup];
+
+
+	Network::destinationArraySize = destinationArraySize;
+	Network::inputArraySize = inputArraySize;
+	Network::inS = inSizes;
+	Network::outS = outSizes;
+	Network::nC = nChildrenPerLayer;
+	Network::nLayers = nLayers;
 
 	networks = new Network*[nSpecimens];
 	for (int i = 0; i < nSpecimens; i++) {
-		networks[i] = new Network(inSizes, outSizes, nChildrenPerLayer, nLayers, nTrialsPerGroup);
+		networks[i] = new Network(nTrialsPerGroup);
 		createPhenotype(networks[i]);
 	}
 
-	currentModuleReplacementTreshold = std::make_unique<float[]>(nLayers);
-	for (int l = 0; l < nLayers; l++) currentModuleReplacementTreshold[l] = -.7f;  // TODO arbitrary
-	currentNetworkReplacementTreshold = -.7f;
+#ifdef NOCUDA
+	GPUpreallocForNetworks();
+#endif
+
+	Network::mats_CUDA = matrices_LayerDestinationType_CUDA;
+	Network::vecs_CUDA = vectors_LayerDestinationType_CUDA;
 }
 
 
@@ -171,21 +187,26 @@ Population::~Population()
 	for (int i = 0; i < toBeDestroyedModules.size(); i++) {
 		delete toBeDestroyedModules[i];
 	}
+
+#ifndef NOCUDA
+	GPUdeallocForNetworks();
+#endif
 }
 
 
 void Population::evolve(int nSteps) 
 {
-	// increasing these 2 parameters refines the fitness computations, at the cost of compute.
+	// increasing these parameters refines the fitness computations, at a linear compute cost.
 	// (linear in nShuffles * nNetworksSteps)
 
 #ifdef NO_GROUP
 	const int nShuffles = 1; // DO NOT CHANGE
 #else 
-	const int nShuffles = 5;
+	const int nShuffles = 3;
 #endif
 
-	const int nNetworksSteps = 5;
+	const int nNetworksSteps = 3;
+
 
 	for (int i = 0; i < nSteps; i++) 
 	{
@@ -388,13 +409,15 @@ void Population::createPhenotype(Network* net)
 		}
 	}
 
-	net->createPhenotype(inputArraySize, destinationArraySize, genotype);
+	net->createPhenotype(genotype);
 }
 
 
 Node_G* Population::createChild(PhylogeneticNode* primaryParent, int moduleLayer) {
 
-	// Reminder: when this function is called, nParents > 1.
+	if (maxNParents == 1) {
+		return new Node_G(modules[moduleLayer][primaryParent->modulePosition]);
+	}
 
 	std::vector<int> parents;
 	parents.push_back(primaryParent->modulePosition);
@@ -500,16 +523,18 @@ void Population::replaceNetworks()
 
 		delete networks[i];
 
-		networks[i] = new Network(inSizes, outSizes, nChildrenPerLayer, nLayers, nTrialsPerGroup);
+		networks[i] = new Network(nTrialsPerGroup);
 		createPhenotype(networks[i]);
 	}
 
-	if ((float)nReplacements / (float)nSpecimens > networkReplacedFraction) 
+
+	// TODO .8 arbitrary
+	if ((float)nReplacements / (float)nSpecimens > networkReplacedFraction)  
 	{
-		currentNetworkReplacementTreshold *= 1.0f / .8f; // TODO arbitrary
+		currentNetworkReplacementTreshold = std::max(-10.0f, currentNetworkReplacementTreshold / .8f); 
 	}
 	else {
-		currentNetworkReplacementTreshold *= .8f;
+		currentNetworkReplacementTreshold = std::min(-.03f, currentNetworkReplacementTreshold * .8f);
 	}
 }
 
@@ -563,14 +588,76 @@ void Population::replaceModules() {
 		//std::cout << (float)nReplacements / (float)nEvolvedModulesPerLayer[l] << " ";
 		if ((float)nReplacements / (float)nEvolvedModulesPerLayer[l] > moduleReplacedFractions[l])
 		{
-			currentModuleReplacementTreshold[l] *= 1.0f / .8f; 
+			currentModuleReplacementTreshold[l] = std::max(-10.0f, currentModuleReplacementTreshold[l] / .8f);
 		}
 		else {
-			currentModuleReplacementTreshold[l] *= .8f;
+			currentModuleReplacementTreshold[l] = std::min(-.03f, currentModuleReplacementTreshold[l] * .8f);
 		}
 	}
 	//std::cout << std::endl;
 
 	uint64_t stop = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	//std::cout << "Modules creation took " << stop - start << " ms." << std::endl;
+}
+
+
+void Population::GPUdeallocForNetworks() {
+	for (int l = 0; l < nLayers; l++)
+	{
+		for (int dest = 0; dest < 3; dest++) {
+			for (int i = 0; i < N_VECS; i++) {
+				cudaFree(vectors_LayerDestinationType_CUDA[l][dest][i]);
+			}
+
+			for (int i = 0; i < N_MATRICES; i++) {
+				cudaFree(matrices_LayerDestinationType_CUDA[l][dest][i]);
+			}
+		}
+	}
+}
+
+
+void Population::GPUpreallocForNetworks() 
+{
+	
+	vectors_LayerDestinationType_CUDA = new float***[nLayers];
+	matrices_LayerDestinationType_CUDA = new float***[nLayers];
+
+	for (int l = 0; l < nLayers; l++) 
+	{
+		int totalNModulesAtLayer = groupTrial->nAgents * nModulesPerNetworkLayer[l];
+
+
+		vectors_LayerDestinationType_CUDA[l] = new float**[3];
+		matrices_LayerDestinationType_CUDA[l] = new float**[3];
+
+	
+		InternalConnexion_G* co[3] = {
+			&modules[l][0]->toModulation,
+			&modules[l][0]->toModulation,
+			&modules[l][0]->toModulation
+		};
+
+		for (int dest = 0; dest < 3; dest++) {
+
+			vectors_LayerDestinationType_CUDA[l][dest] = new float*[N_VECS];
+			int vecSize = co[dest]->nLines;
+			for (int i = 0; i < N_VECS; i++) {
+				cudaMalloc(
+					&vectors_LayerDestinationType_CUDA[l][dest][i],
+					sizeof(float) * vecSize * totalNModulesAtLayer
+				);
+			}
+
+
+			matrices_LayerDestinationType_CUDA[l][dest] = new float*[N_MATRICES];
+			int matSize = co[dest]->nLines * co[dest]->nColumns;
+			for (int i = 0; i < N_MATRICES; i++) {
+				cudaMalloc(
+					&matrices_LayerDestinationType_CUDA[l][dest][i],
+					sizeof(float) * matSize * totalNModulesAtLayer
+				);
+			}
+		}
+	}
 }

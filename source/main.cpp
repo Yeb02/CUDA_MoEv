@@ -10,9 +10,15 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 
 #endif
 
-#include <iostream>
+
 #include "Population.h"
 #include "Random.h"
+
+#include <iostream>
+
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+
 
 #ifdef ROCKET_SIM_T
 #include "RocketSim.h"
@@ -29,6 +35,9 @@ using namespace std;
 int main()
 {
     LOG("Seed : " << seed);
+
+    cublasHandle_t handle;
+    cublasCreate_v2(&handle);
 
 #ifdef ROCKET_SIM_T
     // Path to where you dumped rocket league collision meshes.
@@ -64,19 +73,19 @@ int main()
     GroupTrial groupTrial(innerTrial, nAgentsPerGroup, channelSize);
 
  
-    const int nLayers = 3;
+    /*const int nLayers = 3;
     int inSizes[nLayers] = { groupTrial.netInSize, 8, 4};
     int outSizes[nLayers] = { groupTrial.netOutSize, 7, 3};
     int nChildrenPerLayer[nLayers] = {2, 1, 0};
     int nEvolvedModulesPerLayer[nLayers] = {64, 128, 128};
-    float moduleReplacedFractions[nLayers] = {.3f, .3f, .3f};
+    float moduleReplacedFractions[nLayers] = {.3f, .3f, .3f};*/
 
-    //const int nLayers = 1;
-    //int inSizes[nLayers] = { groupTrial.netInSize};
-    //int outSizes[nLayers] = { groupTrial.netOutSize};
-    //int nChildrenPerLayer[nLayers] = { 0 };
-    //int nEvolvedModulesPerLayer[nLayers] = { 64 };
-    //float moduleReplacedFractions[nLayers] = { .3f };
+    const int nLayers = 1;
+    int inSizes[nLayers] = { groupTrial.netInSize};
+    int outSizes[nLayers] = { groupTrial.netOutSize};
+    int nChildrenPerLayer[nLayers] = { 0 };
+    int nEvolvedModulesPerLayer[nLayers] = { 64 };
+    float moduleReplacedFractions[nLayers] = { .3f };
 
 #ifdef NO_GROUP
     inSizes[0] = groupTrial.innerTrial->netInSize;   // DO NOT EDIT
@@ -94,12 +103,12 @@ int main()
     params.outSizes = outSizes;
     params.nChildrenPerLayer = nChildrenPerLayer;
     params.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
-    params.moduleReplacedFractions = moduleReplacedFractions; //in [0,1]
-    params.networkReplacedFraction = .2f; //in [0,1]
+    params.moduleReplacedFractions = moduleReplacedFractions; //in [0,.5]
+    params.networkReplacedFraction = .2f; //in [0,.5]
     params.voteValue = .3f; // > 0
     params.accumulatedFitnessDecay = .9f; //in [0,1]
     params.baseMutationProbability = 1.0f;//in [0,1]
-    params.consanguinityDistance = 1;  // MUST BE >= 1
+    params.consanguinityDistance = 3;  // MUST BE >= 1
 
 
     int nSteps = 10000;
@@ -108,25 +117,6 @@ int main()
     Population population(&groupTrial, params);
 
     population.evolve(nSteps);
-
-    // Tests.
-    /*if (false) {
-        std::ifstream is("models\\topNet_1685971637922_631.renon", std::ios::binary);
-        LOG(is.is_open());
-        Network* n = new Network(is);
-        LOG("Loaded.");
-        n->createPhenotype();
-        n->preTrialReset();
-        trials[0]->reset(true);
-        float avg_thr = 0.0f;
-        while (!trials[0]->isTrialOver) {
-            n->step(trials[0]->observations);
-            trials[0]->step(n->getOutput());
-            LOG(n->getOutput()[0]);
-        }
-        delete n;
-        LOG("Reloaded best specimen's score on the same trial = " << trials[0]->score);
-    }*/
 
     return 0;
 }

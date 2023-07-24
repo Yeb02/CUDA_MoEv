@@ -3,8 +3,7 @@
 #include "Network.h"
 #include <iostream>
 
-Network::Network(int* inS, int* outS, int* nC, int depth, int nTrialsPerGroup) :
-	inS(inS), outS(outS), nC(nC), depth(depth)
+Network::Network(int nTrialsPerGroup)
 {
 	inputArraySize = -1;
 	destinationArraySize = -1;
@@ -38,12 +37,9 @@ void Network::destroyPhenotype() {
 }
 
 
-void Network::createPhenotype(int _inputArraySize, int _destinationArraySize, Node_G** _nodes) {
+void Network::createPhenotype(Node_G** _nodes) {
 	if (topNodeP.get() == NULL) {
 		nodes.reset(_nodes);
-
-		inputArraySize = _inputArraySize;
-		destinationArraySize = _destinationArraySize;
 
 		topNodeP.reset(new Node_P(nodes[0], nodes.get(), 0, 1, nC, 1));
 
@@ -99,9 +95,9 @@ void Network::preTrialReset() {
 
 void Network::step(float* input) {
 
-	// float* kappa = topNodeP  aie aie aie TODO TODO TODO PRIORITAIRE
+	// float* kappa = topNodeP  ?
 	for (int i = 0; i < inS[0]; i++) {
-		topNodeP->inputArray_avg[i] = topNodeP->inputArray_avg[i]*.8f + topNodeP->inputArray[i] * .2f;
+		topNodeP->inputArray_avg[i] = topNodeP->inputArray[i];
 	}
 
 	bool firstCall = (nInferencesOverTrial == 0);
@@ -123,9 +119,43 @@ void Network::step(float* input) {
 
 	topNodeP->forward(firstCall);
 
+
+
 	nInferencesOverLifetime++;
 	nInferencesOverTrial++;
 }
+
+
+
+void Network::uploadToGPU(int netId) {
+
+}
+
+void Network::randomizeH(int netId) {
+
+}
+
+void Network::retrieveLearnedParametersFromGPU(int netId)
+{
+
+}
+
+void Network::grouped_step(Network** nets, int nNets) 
+{
+
+}
+
+void Network::grouped_perLayer_Forward(int layer)
+{
+
+}
+
+void Network::grouped_perDestination_propagateAndLocalUpdate(int destination)
+{
+
+}
+
+
 
 
 void Network::save(std::ofstream& os)

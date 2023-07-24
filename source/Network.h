@@ -1,5 +1,10 @@
 #pragma once
 
+
+#include <cuda_runtime.h>
+#include <cublas_v2.h>
+#include <curand.h>
+
 #include <vector>
 #include <memory>
 #include <cmath>
@@ -14,7 +19,7 @@
 class Network {
 	
 public:
-	Network(int* inS, int* outS, int* nC, int depth, int nTrialsPerGroup);
+	Network(int nTrialsPerGroup);
 
 	~Network() {};
 
@@ -28,8 +33,25 @@ public:
 	float* getOutput();
 
 	void step(float* input);
+
+
+	//**************************		CUDA		*************************//
+
+	void uploadToGPU(int netId);
+	void randomizeH(int netId);
+	void retrieveLearnedParametersFromGPU(int netId);
+
+	static void grouped_step(Network** nets, int nNets);
+	static void grouped_perLayer_Forward(int layer);
+	static void grouped_perDestination_propagateAndLocalUpdate(int destination);
+
+	static float**** mats_CUDA;
+	static float**** vecs_CUDA;
+
+	//***********************************************************************//
 	
-	void createPhenotype(int inputArraySize, int destinationArraySize, Node_G** nodes);
+
+	void createPhenotype(Node_G** nodes);
 	void destroyPhenotype();
 
 	// Sets to 0 the dynamic elements of the phenotype. 
@@ -50,15 +72,15 @@ public:
 	// Breadth first traversal of the tree. Used by population for module score calculations.
 	std::unique_ptr<Node_G* []> nodes;
 
+
+	static int destinationArraySize;
+	static int inputArraySize;
+	static int* inS;
+	static int* outS;
+	static int* nC;
+	static int nLayers;
+
 private:
-
-	int destinationArraySize, inputArraySize;
-
-	// These quantities are not strictly necessary to store, I do it for convenience.
-	int* inS;
-	int* outS;
-	int* nC;
-	int depth;
 
 	std::unique_ptr<Node_P> topNodeP;
 

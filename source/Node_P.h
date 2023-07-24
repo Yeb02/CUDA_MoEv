@@ -62,6 +62,9 @@ struct Node_P {
 
 	void preTrialReset();
 
+
+	void CUDA_forward();
+
 	void forward(bool firstCall);
 
 

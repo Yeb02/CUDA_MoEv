@@ -256,7 +256,7 @@ private:
 	float currentNetworkReplacementTreshold;
 
 	// Util for networks.
-	int nNodesPerNetwork, inputArraySize, destinationArraySize;
+	int nNodesPerNetwork;
 
 	// To save progress regularly
 	int fittestSpecimen;
@@ -288,6 +288,41 @@ private:
 	Node_G* createChild(PhylogeneticNode* primaryParent, int moduleLayer);
 	
 	void createPhenotype(Network* n);
+
+
+	// CUDA UTILS
+	
+	// There are groupTrial->nAgents networks, nLayers layers per network, 
+	// nModulesPerNetworkLayer[l] nodes per layer, 3 possible destinations 
+	// (modulation, children, output) per node, and many matrices per destination. 
+	// We want to batch (strided) matrix multiplications, which can be done at the
+	// lowest granularity "per layer", i.e. at a given layer, matmuls for  all
+	// networks of the group, for all nodes of this layer, are batched. This requires
+	// the matrices be contiguous.
+
+
+	// Vanilla : A,B,C,eta,E,H -> 6 matrix types, so Dim 2 has valid indices [0->5], 
+	// and Dim 0 = layer   Dim 1 = destination  
+	// The number of matrices may change with different preprocessor directives.
+	float**** matrices_LayerDestinationType_CUDA;
+
+
+	// Same story but for vectors. Stores parameters kappa (STDP_mu, STDP_lambda) 
+	// also depends on preprocessor directives.
+	float**** vectors_LayerDestinationType_CUDA;
+
+
+
+	// Allocates the space for the above matrices and vectors on GPU. To be called once and only once at the 
+	// construction of "this".
+	void GPUpreallocForNetworks();
+
+	void GPUdeallocForNetworks();
+
+
+
+
+
 
 	// EVOLUTION PARAMETERS: 
 	// Set with a PopulationEvolutionParameters struct. Description in the struct definition.
