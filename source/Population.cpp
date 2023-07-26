@@ -280,10 +280,7 @@ void Population::evaluateGroups(bool log)
 			
 			while (!groupTrial->innerTrial->isTrialOver) 
 			{
-#ifdef NO_GROUP
-				nets[0]->step(groupTrial->innerTrial->observations.data());
-				groupTrial->innerTrial->step(outputs[0]);
-#else
+
 				std::copy(
 					groupTrial->innerTrial->observations.begin(),
 					groupTrial->innerTrial->observations.end(),
@@ -294,15 +291,22 @@ void Population::evaluateGroups(bool log)
 					groupTrial->prepareInput(netInput + groupTrial->innerTrial->netInSize, j);
 					nets[j]->step(netInput);
 				}
+#ifdef NO_GROUP
+				groupTrial->innerTrial->step(outputs[0]);
+#else
 				groupTrial->step();
 #endif
 			}
 
+#ifdef NO_GROUP
+			nets[0]->perTrialVotes[i] = 0.0f;
+#else
 			groupTrial->normalizeVotes();
 			for (int j = 0; j < groupTrial->nAgents; j++)
 			{
 				nets[j]->perTrialVotes[i] = groupTrial->accumulatedVotes[j];
 			}
+#endif
 
 			groupFitnesses[i * nGroups + g] = groupTrial->innerTrial->score;
 

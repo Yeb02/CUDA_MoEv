@@ -41,6 +41,9 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns) :
 	A = std::make_unique<float[]>(s);
 	B = std::make_unique<float[]>(s);
 	C = std::make_unique<float[]>(s);
+	D = std::make_unique<float[]>(s);
+	F = std::make_unique<float[]>(s);
+	G = std::make_unique<float[]>(s);
 
 
 	auto rand = [&s](float* vec, float b, float f) {
@@ -59,6 +62,10 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns) :
 	rand(B.get(), 0.0f, f0);
 	rand(C.get(), 0.0f, f0);
 	rand01(eta.get());
+
+	rand(D.get(), 0.0f, f0);
+	rand(F.get(), 0.0f, f0);
+	rand(G.get(), 0.0f, f0);
 
 	s = nLines;
 
@@ -91,6 +98,14 @@ InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
 	std::copy(gc.B.get(), gc.B.get() + s, B.get());
 	std::copy(gc.C.get(), gc.C.get() + s, C.get());
 
+	D = std::make_unique<float[]>(s);
+	F = std::make_unique<float[]>(s);
+	G = std::make_unique<float[]>(s);
+
+	std::copy(gc.D.get(), gc.D.get() + s, D.get());
+	std::copy(gc.F.get(), gc.F.get() + s, F.get());
+	std::copy(gc.G.get(), gc.G.get() + s, G.get());
+
 
 	s = nLines;
 	
@@ -122,6 +137,13 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	std::copy(gc.B.get(), gc.B.get() + s, B.get());
 	std::copy(gc.C.get(), gc.C.get() + s, C.get());
 
+	D = std::make_unique<float[]>(s);
+	F = std::make_unique<float[]>(s);
+	G = std::make_unique<float[]>(s);
+
+	std::copy(gc.D.get(), gc.D.get() + s, D.get());
+	std::copy(gc.F.get(), gc.F.get() + s, F.get());
+	std::copy(gc.G.get(), gc.G.get() + s, G.get());
 
 	s = nLines;
 	
@@ -184,6 +206,9 @@ void InternalConnexion_G::mutateFloats(float p) {
 
 	mutateDecayMatrix(eta.get());
 
+	mutateMatrix(D.get());
+	mutateMatrix(F.get());
+	mutateMatrix(G.get());
 
 	size = nLines;
 	SET_BINOMIAL(size, p);

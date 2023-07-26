@@ -92,13 +92,22 @@ void Node_P::forward(bool firstCall) {
 		int nl = icp.type->nLines;
 		int nc = icp.type->nColumns;
 
+		// destinationArray instead of inputArray yields better results ????? TODO
+		// Buffer overread
+		float* modulation = inputArray + type->inputSize; 
+
 		float* H = icp.H.get();
 		float* E = icp.E.get();
 
+		
 		float* A = icp.type->A.get();
 		float* B = icp.type->B.get();
 		float* C = icp.type->C.get();
 		float* eta = icp.type->eta.get();
+
+		float* D = icp.type->D.get();
+		float* F = icp.type->F.get();
+		float* G = icp.type->G.get();
 
 		float* kappa = icp.type->kappa.get();
 #ifdef STDP
@@ -130,16 +139,16 @@ void Node_P::forward(bool firstCall) {
 					// inputArray[j] - inputArray_avg[j] does not depend on the line and can therefore be precomputed 
 					// (here each substraction is computed redundantly nLines times.)
 					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-						abs(inputArray[j] - inputArray_avg[j]) * inputArray[j] * 10.0f *
-						(A[matID] * dA[i] + B[matID] * dA_avg[i] + C[matID]);
-						//(A[matID] * (dA[i] - dA_avg[i]) + B[matID] * dA[i] + C[matID] * sqrtf(abs(dA[i])) );
-						//(A[matID] * dA[i] + B[matID] * dA_avg[i]) *
-						//(1.0f + C[matID] * H[matID]); // bof bof
-						//(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]);
+						(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]  
+							+ 5.0f * (inputArray[j] - inputArray_avg[j]) * 
+							(dA[i] + D[matID]* dA_avg[i]) * 
+							(F[matID] + H[matID] * G[matID])
+						);
+						
 
 
 					// 7:
-					H[matID] += E[matID] * totalM[0];
+					H[matID] += E[matID] * modulation[0];
 					H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
 				}
 			}
@@ -192,15 +201,15 @@ void Node_P::forward(bool firstCall) {
 					// inputArray[j] - inputArray_avg[j] does not depend on the line and can therefore be precomputed 
 					// (here each substraction is computed redundantly nLines times.)
 					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-						//(inputArray[j] - inputArray_avg[j]) *
-						//(A[matID] * (dA[i] - dA_avg[i]) + B[matID] * dA[i] + C[matID] * sqrtf(abs(dA[i])) );
-						//(A[matID] * dA[i] + B[matID] * dA_avg[i]) *
-						//(1.0f + C[matID] * H[matID]); // bof bof
-						(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]);
+						(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]
+							+ 5.0f * (inputArray[j] - inputArray_avg[j]) *
+							(dA[i] + D[matID] * dA_avg[i]) *
+							(F[matID] + H[matID] * G[matID])
+						);
 
 
 					// 7:
-					H[matID] += E[matID] * totalM[0];
+					H[matID] += E[matID] * modulation[0];
 					H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
 				}
 			}
@@ -213,13 +222,7 @@ void Node_P::forward(bool firstCall) {
 		forwardAndLocalUpdates(toModulation, type->outputSize);
 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			totalM[i] += destinationArray[i + type->outputSize];
-			inputArray[i + type->inputSize] = totalM[i];
-
-			// TODO this way of doing things could mess up the hebbian update, (or not !)
-			// if it is the case use :
-			//inputArray[i + type->inputSize] = destinationArray[i + type->outputSize];
-			//totalM[i] += inputArray[i + type->inputSize];
+			inputArray[i + type->inputSize] = destinationArray[i + type->outputSize];
 		}
 	}
 
@@ -244,11 +247,6 @@ void Node_P::forward(bool firstCall) {
 				destinationArray_avg + id + children[i].type->inputSize,
 				children[i].inputArray_avg
 			);
-
-			
-			for (int j = 0; j < MODULATION_VECTOR_SIZE; j++) {
-				children[i].totalM[j] = totalM[j] * .7f;  // TODO .7 is arbitrary.
-			}
 			
 
 			id += children[i].type->inputSize;
@@ -284,8 +282,7 @@ void Node_P::forward(bool firstCall) {
 		forwardAndLocalUpdates(toModulation, type->outputSize);
 
 		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			totalM[i] += destinationArray[i + type->outputSize];
-			inputArray[i + type->inputSize] = totalM[i];
+			inputArray[i + type->inputSize] = destinationArray[i + type->outputSize];
 		}
 	}
 

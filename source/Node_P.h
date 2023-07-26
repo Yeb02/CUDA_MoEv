@@ -11,8 +11,6 @@
 struct Node_P {
 	Node_G* type;
 
-	float totalM[MODULATION_VECTOR_SIZE]; // parent's + local M.    
-
 	 
 	std::vector<Node_P> children;
 
@@ -54,7 +52,6 @@ struct Node_P {
 		destinationArray = nullptr;
 		inputArray_avg = nullptr;
 		inputArray = nullptr;
-		std::fill(totalM, totalM + MODULATION_VECTOR_SIZE, 0.0f);
 		type = nullptr;
 	}
 
@@ -62,8 +59,6 @@ struct Node_P {
 
 	void preTrialReset();
 
-
-	void CUDA_forward();
 
 	void forward(bool firstCall);
 

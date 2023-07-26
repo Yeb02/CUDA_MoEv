@@ -69,6 +69,9 @@ Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 			childCo->B[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->B[i];
 			childCo->C[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->C[i];
 			childCo->eta[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->eta[i];
+			childCo->D[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->D[i];
+			childCo->F[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->F[i];
+			childCo->G[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->G[i];
 		}
 
 		int sArr = childCo->nLines;

@@ -11,6 +11,7 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 #endif
 
 
+
 #include "Population.h"
 #include "Random.h"
 
@@ -18,7 +19,7 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
-
+#pragma comment(lib, "cublas.lib") // Not linked by default. I'd rather add it here than in the projects settings.
 
 #ifdef ROCKET_SIM_T
 #include "RocketSim.h"
@@ -87,7 +88,7 @@ int main()
     int nEvolvedModulesPerLayer[nLayers] = { 64 };
     float moduleReplacedFractions[nLayers] = { .3f };
 
-#ifdef NO_GROUP
+#ifdef NO_GROUP // small buffer overread in votes, TODO
     inSizes[0] = groupTrial.innerTrial->netInSize;   // DO NOT EDIT
     outSizes[0] = groupTrial.innerTrial->netOutSize; // DO NOT EDIT
 #endif

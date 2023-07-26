@@ -23,6 +23,10 @@ struct InternalConnexion_G {
 	std::unique_ptr<float[]> C;
 	std::unique_ptr<float[]> eta;	// in [0, 1]
 
+	std::unique_ptr<float[]> D;	
+	std::unique_ptr<float[]> F;	
+	std::unique_ptr<float[]> G;	
+
 #ifdef STDP
 	std::unique_ptr<float[]> STDP_mu; // in [0, 1]
 	std::unique_ptr<float[]> STDP_lambda;// in [0, 1]

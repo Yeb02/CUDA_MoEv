@@ -20,7 +20,7 @@
 //#define ROCKET_SIM_T 
 
 // When defined, CPU functions replace CUDA kernels. Used for debugging purposes.
-//#define NO_CUDA
+#define NO_CUDA
 
 // When defined, networks are evaluated individually (the group trial is ignored, only its innerTrial is used.)
 // Used for debugging purposes.
@@ -28,7 +28,7 @@
 
 // When defined, presynaptic activities of complexNodes (topNode excepted) are a decaying sum of past inputs. This
 // sums decays with time and also as a function of the magnitude of the postsynaptic activation.
-//#define STDP
+#define STDP
 
 // mu, lambda
 #ifdef STDP
@@ -45,13 +45,28 @@
 
 #define ABC_ETA
 #ifdef ABC_ETA
-#define N_MATRICES 6
+#define ABC_ETA_MATS 4
+#else
+#define ABC_ETA_MATS 0
 #endif
 
-// kappa
+#define CORRELATOR
+#ifdef CORRELATOR
+#define CORRELATOR_MATS 3
+#else
+#define CORRELATOR_MATS 0
+#endif
+
+// default 2 accounts for E and H
+#define N_MATRICES 2 + ABC_ETA_MATS + CORRELATOR_MATS
+
+// default 1 accounts for kappa
 #define N_VECS 1 + STDP_VECS
 
-
+// Differing from previous implementations like ReNo or MetaReNo, MoEv does not use diffusing modulations, i.e.
+// the child node's modulation is completely independent from it's parent's. Originally, modulation was not directly 
+// observable by the network but because now it is, cascading modulation is more of a constraint than the integration
+// of a prior. It also make more sense for hebbian update, as causality can be traced back.
 #define MODULATION_VECTOR_SIZE 1     // DO NOT CHANGE
 
 

@@ -3,11 +3,21 @@
 #include "Network.h"
 #include <iostream>
 
+
+int Network::destinationArraySize = 0;
+int Network::inputArraySize = 0;
+int* Network::inS = nullptr;
+int* Network::outS = nullptr;
+int* Network::nC = nullptr;
+int Network::nLayers = 0;
+
+float**** Network::mats_CUDA = nullptr;
+float**** Network::vecs_CUDA = nullptr;
+
+
+
 Network::Network(int nTrialsPerGroup)
 {
-	inputArraySize = -1;
-	destinationArraySize = -1;
-
 	lifetimeFitness = 0.0f;
 	
 	groupID = -1;
@@ -89,7 +99,7 @@ void Network::preTrialReset() {
 
 	topNodeP->preTrialReset();
 
-	std::fill(topNodeP->totalM, topNodeP->totalM + MODULATION_VECTOR_SIZE, 1.0f);
+	std::fill(topNodeP->inputArray + inS[0], topNodeP->inputArray + inS[0] + MODULATION_VECTOR_SIZE, 1.0f);
 };
 
 
@@ -109,12 +119,11 @@ void Network::step(float* input) {
 
 	std::copy(input, input+inS[0], topNodeP->inputArray);
 
-	// On cartpole, the 0.0f version yields the best results. But I think that both
-	// should be commented on a real trial, and replaced by the line below.
+	// On cartpole, the 0.0f version yields the best results.
+	// replace with topNodeP->inputArray + inS[0]
 	//std::fill(topNodeP->totalM, topNodeP->totalM + MODULATION_VECTOR_SIZE, 1.0f);
 	//std::fill(topNodeP->totalM, topNodeP->totalM + MODULATION_VECTOR_SIZE, 0.0f); 
-	// Replaced by:
-	for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) topNodeP->totalM[i] *= .7f;
+
 
 
 	topNodeP->forward(firstCall);
