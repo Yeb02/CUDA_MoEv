@@ -93,7 +93,7 @@ void Node_P::forward(bool firstCall) {
 		int nc = icp.type->nColumns;
 
 		// destinationArray instead of inputArray yields better results ????? TODO
-		// Buffer overread
+		// Buffer overread though
 		float* modulation = inputArray + type->inputSize; 
 
 		float* H = icp.H.get();
