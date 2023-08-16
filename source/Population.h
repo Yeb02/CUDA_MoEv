@@ -277,6 +277,8 @@ private:
 	// fitnesses are updated according to the results.
 	void evaluateGroups(bool log);
 
+	// used only when NO_GROUP is defined. replaces evaluateGroups.
+	void evaluateNetsIndividually(bool log);
 
 	void replaceNetworks();
 

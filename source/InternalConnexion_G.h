@@ -16,28 +16,18 @@ struct InternalConnexion_G {
 
 	static float decayParametersInitialValue;
 
-	int nLines, nColumns;
+	int nRows, nColumns;
 
-	std::unique_ptr<float[]> A;
-	std::unique_ptr<float[]> B;
-	std::unique_ptr<float[]> C;
-	std::unique_ptr<float[]> eta;	// in [0, 1]
+	std::unique_ptr<float[]> storage;
 
-	std::unique_ptr<float[]> D;	
-	std::unique_ptr<float[]> F;	
-	std::unique_ptr<float[]> G;	
+	std::vector<float*> matrices01;
+	std::vector<float*> matricesR;
+	std::vector<float*> vectors01;
+	std::vector<float*> vectorsR;
 
-#ifdef STDP
-	std::unique_ptr<float[]> STDP_mu; // in [0, 1]
-	std::unique_ptr<float[]> STDP_lambda;// in [0, 1]
-#endif
+	InternalConnexion_G() { nRows = -1; nColumns = -1; };
 
-	std::unique_ptr<float[]> kappa;// in [0, 1]
-
-
-	InternalConnexion_G() { nLines = -1; nColumns = -1; };
-
-	InternalConnexion_G(int nLines, int nColumns);
+	InternalConnexion_G(int nRows, int nColumns);
 
 	InternalConnexion_G(const InternalConnexion_G& gc);
 
@@ -49,7 +39,8 @@ struct InternalConnexion_G {
 	void save(std::ofstream& os);
 
 	int getNParameters() {
-		return nLines * (4 * nColumns + 1); // + 3 instead of +1 if stdp, but does not matter.
+		return nRows * nColumns * (N_STATIC_MATRICES_01 + N_STATIC_MATRICES_R)
+			+ nRows * (N_STATIC_VECTORS_01 + N_STATIC_VECTORS_R);
 	}
 
 	void mutateFloats(float p);

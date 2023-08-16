@@ -19,7 +19,7 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
-#pragma comment(lib, "cublas.lib") // Not linked by default. I'd rather add it here than in the projects settings.
+#pragma comment(lib, "cublas.lib") // Not linked by default in the cuda template. 
 
 #ifdef ROCKET_SIM_T
 #include "RocketSim.h"
@@ -88,12 +88,12 @@ int main()
     int nEvolvedModulesPerLayer[nLayers] = { 64 };
     float moduleReplacedFractions[nLayers] = { .3f };
 
-#ifdef NO_GROUP // small buffer overread in votes, TODO
+#ifdef NO_GROUP 
     inSizes[0] = groupTrial.innerTrial->netInSize;   // DO NOT EDIT
     outSizes[0] = groupTrial.innerTrial->netOutSize; // DO NOT EDIT
 #endif
 
-    InternalConnexion_G::decayParametersInitialValue = .2f;
+    InternalConnexion_G::decayParametersInitialValue = .3f;
 
     PopulationEvolutionParameters params;
     params.nSpecimens = 128 * nAgentsPerGroup; 

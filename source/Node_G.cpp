@@ -2,7 +2,6 @@
 
 Node_G::Node_G(int* inS, int* outS, int nC) :
 	inputSize(inS[0]), outputSize(outS[0]), nChildren(nC),
-	toModulation(MODULATION_VECTOR_SIZE, computeNCols(inS, outS, nC)),
 	toChildren(nC > 0 ? nC * inS[1] : 0, computeNCols(inS, outS, nC)),
 	toOutput(outS[0], computeNCols(inS, outS, nC))
 {
@@ -20,7 +19,6 @@ Node_G::Node_G(Node_G* n) {
 	nChildren = n->nChildren;
 
 	toChildren = n->toChildren;
-	toModulation = n->toModulation;
 	toOutput = n->toOutput;
 
 	isInModuleArray = false;
@@ -60,29 +58,30 @@ Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 	// combines all connexions of the "connexions" array into childCo
 	auto combineConnexions = [&](InternalConnexion_G* childCo)
 	{
-		int sMat = childCo->nLines * childCo->nColumns;
+		int sMat = childCo->nRows * childCo->nColumns;
 		for (int i = 0; i < sMat; i++)
 		{
-			//childCo->A[id] = connexions[INT_0X(nParents)]->A[id];
-
-			childCo->A[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->A[i];
-			childCo->B[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->B[i];
-			childCo->C[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->C[i];
-			childCo->eta[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->eta[i];
-			childCo->D[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->D[i];
-			childCo->F[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->F[i];
-			childCo->G[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->G[i];
+			for (int j = 0; j < N_STATIC_MATRICES_01; j++) 
+			{
+				childCo->matrices01[j][i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->matrices01[j][i];
+			}
+			for (int j = 0; j < N_STATIC_MATRICES_R; j++)
+			{
+				childCo->matricesR[j][i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->matricesR[j][i];
+			}
 		}
 
-		int sArr = childCo->nLines;
+		int sArr = childCo->nRows;
 		for (int i = 0; i < sArr; i++)
 		{
-			childCo->kappa[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->kappa[i];
-
-#ifdef STDP
-			childCo->STDP_mu[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->STDP_mu[i];
-			childCo->STDP_lambda[i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->STDP_lambda[i];
-#endif
+			for (int j = 0; j < N_STATIC_VECTORS_01; j++)
+			{
+				childCo->vectors01[j][i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->vectors01[j][i];
+			}
+			for (int j = 0; j < N_STATIC_VECTORS_R; j++)
+			{
+				childCo->vectorsR[j][i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->vectorsR[j][i];
+			}
 		}
 	};
 
@@ -92,9 +91,6 @@ Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 
 	for (int j = 0; j < nParents; j++) { connexions[j] = &parents[j]->toOutput; }
 	combineConnexions(&child->toOutput);
-
-	for (int j = 0; j < nParents; j++) { connexions[j] = &parents[j]->toModulation; }
-	combineConnexions(&child->toModulation);
 	
 
 	delete[] connexions;
@@ -108,7 +104,6 @@ Node_G::Node_G(std::ifstream& is) {
 	READ_4B(outputSize, is);
 	
 	toChildren = InternalConnexion_G(is);
-	toModulation = InternalConnexion_G(is);
 	toOutput = InternalConnexion_G(is);
 
 	isInModuleArray = false;
@@ -120,14 +115,12 @@ void Node_G::save(std::ofstream& os) {
 
 	
 	toChildren.save(os);
-	toModulation.save(os);
 	toOutput.save(os);
 }
 
 void Node_G::mutateFloats(float adjustedFMutationP)
 {
 	toChildren.mutateFloats(adjustedFMutationP);
-	toModulation.mutateFloats(adjustedFMutationP);
 	toOutput.mutateFloats(adjustedFMutationP);
 }
 

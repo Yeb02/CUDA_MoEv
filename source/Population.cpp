@@ -131,11 +131,11 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 
 		int cIs = nc == 0 ? 0 : inSizes[l + 1];
 		destinationArraySize += nModulesPerNetworkLayer[l] *
-			(outSizes[l] + MODULATION_VECTOR_SIZE + cIs * nc);
+			(outSizes[l] + cIs * nc);
 
 		int cOs = nc == 0 ? 0 : outSizes[l + 1];
 		inputArraySize += nModulesPerNetworkLayer[l] *
-			(inSizes[l] + MODULATION_VECTOR_SIZE + cOs * nc);
+			(inSizes[l] + cOs * nc);
 
 		nNodesPerNetwork += nModulesPerNetworkLayer[l];
 	}
@@ -197,22 +197,30 @@ Population::~Population()
 void Population::evolve(int nSteps) 
 {
 	// increasing these parameters refines the fitness computations, at a linear compute cost.
-	// (linear in nShuffles * nNetworksSteps)
+	// (linear in nShuffles * nNetworksSelectionSteps)
 
-#ifdef NO_GROUP
-	const int nShuffles = 1; // DO NOT CHANGE
-#else 
+	// how many different groups a network will be part of between 2 network selection steps.
 	const int nShuffles = 3;
-#endif
 
-	const int nNetworksSteps = 3;
+	// how many selection steps there are for networks between two module selections
+	const int nNetworksSelectionSteps = 3;
 
 
 	for (int i = 0; i < nSteps; i++) 
 	{
 		
-		for (int j = 0; j < nNetworksSteps; j++)
+		for (int j = 0; j < nNetworksSelectionSteps; j++)
 		{
+
+#ifdef NO_GROUP
+			for (int k = 0; k < nShuffles; k++)
+			{
+				bool log = (k + j) == 0;
+				if (log) std::cout << "Step " << i << " ";
+
+				evaluateNetsIndividually(log); 
+			}
+#else
 			// Sort networks by age
 			auto f = [](Network* n1, Network* n2) {return n1->nExperiencedTrials > n2->nExperiencedTrials; };
 			std::sort(networks, networks + nSpecimens, f);
@@ -225,11 +233,12 @@ void Population::evolve(int nSteps)
 					std::shuffle(networks + i * nGroups, networks + (i + 1) * nGroups, generator);
 				}
 
-				bool log = (k + j) == 0;
+				bool log = (k + j) == 0; // TODO monitor the whole process
 				if (log) std::cout << "Step " << i << " ";
 
-				evaluateGroups(log); // TODO would be interesting at each step in case of grouped trials.
+				evaluateGroups(log); 
 			}
+#endif
 
 			replaceNetworks();
 		}
@@ -238,6 +247,91 @@ void Population::evolve(int nSteps)
 
 		deleteUnusedModules();
 	} 
+}
+
+
+void Population::evaluateNetsIndividually(bool log) 
+{
+	// nSpecimens = nGroups when this function is called.
+
+	for (int i = 0; i < nSpecimens; i++) 
+	{
+		for (int j = 0; j < nTrialsPerGroup; j++)
+		{
+			networks[i]->preTrialReset();
+			groupTrial->innerTrial->reset(false);
+			while (!groupTrial->innerTrial->isTrialOver)
+			{
+				networks[i]->step(groupTrial->innerTrial->observations.data());
+				groupTrial->innerTrial->step(networks[i]->getOutput());
+			}
+			groupFitnesses[j * nSpecimens + i] = groupTrial->innerTrial->score;
+		}
+	}
+
+	// monitoring
+	if (log) {
+		float avgF = 0.0f;
+		float maxF = -100000.0f;
+		float* avgNetF = new float[nSpecimens];
+		std::fill(avgNetF, avgNetF + nSpecimens, 0.0f);
+		for (int i = 0; i < nTrialsPerGroup * nSpecimens; i++)
+		{
+			if (groupFitnesses[i] > maxF) maxF = groupFitnesses[i];
+			avgF += groupFitnesses[i];
+			avgNetF[i % nSpecimens] += groupFitnesses[i];
+		}
+		avgF /= (float)(nTrialsPerGroup * nSpecimens);
+		float maxAvgNetF = -100000.0f;
+		for (int i = 0; i < nGroups; i++)
+		{
+			if (maxAvgNetF < avgNetF[i]) maxAvgNetF = avgNetF[i];
+		}
+		maxAvgNetF /= nTrialsPerGroup;
+		delete[] avgNetF;
+
+		// scores are per group.
+		std::cout << " Over networks, avg avg score: " << avgF << ", best avg score " << maxAvgNetF << ", best score : " << maxF << std::endl;
+	}
+
+	for (int i = 0; i < nTrialsPerGroup; i++)
+	{
+		rankArray(groupFitnesses + i * nSpecimens, groupFitnesses + i * nSpecimens, nSpecimens);
+	}
+
+	for (int l = 0; l < nLayers; l++) {
+		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
+			modules[l][i]->tempFitnessAccumulator = 0.0f;
+			modules[l][i]->nTempFitnessAccumulations = 0;
+		}
+	}
+
+	// update modules and network fitnesses.
+	for (int i = 0; i < nSpecimens; i++)
+	{
+		float f = 0.0f;
+		for (int j = 0; j < nTrialsPerGroup; j++)
+		{
+			f += groupFitnesses[j * nSpecimens + i];
+		}
+		f /= (float)nTrialsPerGroup;
+
+		networks[i]->lifetimeFitness = networks[i]->lifetimeFitness * accumulatedFitnessDecay + f;
+
+		for (int j = 0; j < nNodesPerNetwork; j++) {
+			networks[i]->nodes[j]->tempFitnessAccumulator += f;
+			networks[i]->nodes[j]->nTempFitnessAccumulations++;
+		}
+	}
+
+	for (int l = 0; l < nLayers; l++) {
+		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
+			Node_G* m = modules[l][i];
+			if (m->nTempFitnessAccumulations == 0) continue;
+			m->tempFitnessAccumulator /= (float)m->nTempFitnessAccumulations;
+			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;
+		}
+	}
 }
 
 
@@ -291,22 +385,15 @@ void Population::evaluateGroups(bool log)
 					groupTrial->prepareInput(netInput + groupTrial->innerTrial->netInSize, j);
 					nets[j]->step(netInput);
 				}
-#ifdef NO_GROUP
-				groupTrial->innerTrial->step(outputs[0]);
-#else
+
 				groupTrial->step();
-#endif
 			}
 
-#ifdef NO_GROUP
-			nets[0]->perTrialVotes[i] = 0.0f;
-#else
 			groupTrial->normalizeVotes();
 			for (int j = 0; j < groupTrial->nAgents; j++)
 			{
 				nets[j]->perTrialVotes[i] = groupTrial->accumulatedVotes[j];
 			}
-#endif
 
 			groupFitnesses[i * nGroups + g] = groupTrial->innerTrial->score;
 
@@ -609,11 +696,11 @@ void Population::GPUdeallocForNetworks() {
 	for (int l = 0; l < nLayers; l++)
 	{
 		for (int dest = 0; dest < 3; dest++) {
-			for (int i = 0; i < N_VECS; i++) {
+			for (int i = 0; i < N_DYNAMIC_VECTORS; i++) { // TODO  N_DYNAMIC_VECTORS is not the correct quantity !!!
 				cudaFree(vectors_LayerDestinationType_CUDA[l][dest][i]);
 			}
 
-			for (int i = 0; i < N_MATRICES; i++) {
+			for (int i = 0; i < N_DYNAMIC_MATRICES; i++) {
 				cudaFree(matrices_LayerDestinationType_CUDA[l][dest][i]);
 			}
 		}
@@ -637,16 +724,15 @@ void Population::GPUpreallocForNetworks()
 
 	
 		InternalConnexion_G* co[3] = {
-			&modules[l][0]->toModulation,
-			&modules[l][0]->toModulation,
-			&modules[l][0]->toModulation
+			&modules[l][0]->toChildren,
+			&modules[l][0]->toOutput,
 		};
 
 		for (int dest = 0; dest < 3; dest++) {
 
-			vectors_LayerDestinationType_CUDA[l][dest] = new float*[N_VECS];
-			int vecSize = co[dest]->nLines;
-			for (int i = 0; i < N_VECS; i++) {
+			vectors_LayerDestinationType_CUDA[l][dest] = new float*[N_DYNAMIC_VECTORS];
+			int vecSize = co[dest]->nRows;
+			for (int i = 0; i < N_DYNAMIC_VECTORS; i++) {
 				cudaMalloc(
 					&vectors_LayerDestinationType_CUDA[l][dest][i],
 					sizeof(float) * vecSize * totalNModulesAtLayer
@@ -654,9 +740,9 @@ void Population::GPUpreallocForNetworks()
 			}
 
 
-			matrices_LayerDestinationType_CUDA[l][dest] = new float*[N_MATRICES];
-			int matSize = co[dest]->nLines * co[dest]->nColumns;
-			for (int i = 0; i < N_MATRICES; i++) {
+			matrices_LayerDestinationType_CUDA[l][dest] = new float*[N_DYNAMIC_MATRICES];
+			int matSize = co[dest]->nRows * co[dest]->nColumns;
+			for (int i = 0; i < N_DYNAMIC_MATRICES; i++) {
 				cudaMalloc(
 					&matrices_LayerDestinationType_CUDA[l][dest][i],
 					sizeof(float) * matSize * totalNModulesAtLayer

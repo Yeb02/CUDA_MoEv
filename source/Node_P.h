@@ -14,7 +14,7 @@ struct Node_P {
 	 
 	std::vector<Node_P> children;
 
-	InternalConnexion_P toChildren, toModulation, toOutput;
+	InternalConnexion_P toChildren, toOutput;
 	
 
 	// These arrays are not managed by Complex node, but by Network:
@@ -24,17 +24,15 @@ struct Node_P {
 	// Used as the multiplied vector in matrix operations. Layout:
 	// input -> modulation.out -> children.out
 	float* inputArray;
-	float* inputArray_avg;
 
 	// Used as the result vector in matrix operations. Layout:
 	// output -> modulation.in -> children.in 
 	float* destinationArray;
-	float* destinationArray_avg;
 
 #ifdef STDP
 	// Same layout as destinationArray, i.e.
 	// output -> modulation.in -> children.in 
-	float* destinationArray_preAvg;
+	float* destinationArray_preSynAvg;
 #endif
 
 
@@ -46,11 +44,9 @@ struct Node_P {
 	{
 		__debugbreak();
 #ifdef STDP
-		destinationArray_preAvg = nullptr;
+		destinationArray_preSynAvg = nullptr;
 #endif
-		destinationArray_avg = nullptr;
 		destinationArray = nullptr;
-		inputArray_avg = nullptr;
 		inputArray = nullptr;
 		type = nullptr;
 	}
@@ -60,12 +56,12 @@ struct Node_P {
 	void preTrialReset();
 
 
-	void forward(bool firstCall);
+	void forward();
 
 
 	// The last 2 parameters are optional :
 	// - aa only used when SATURATION_PENALIZING is defined
 	// - acc_pre_syn_acts only used when STDP is defined
-	void setArrayPointers(float** iA, float** iA_avg, float** dA, float** dA_avg, float** dA_preAvg);
+	void setArrayPointers(float** iA, float** dA, float** dA_preAvg);
 
 };

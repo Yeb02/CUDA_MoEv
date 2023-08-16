@@ -2,38 +2,46 @@
 
 InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* type) : type(type)
 {
-	int s = type->nLines * type->nColumns;
+	int s = type->nRows * type->nColumns;
+	if (s == 0) return;
 
-	H = std::make_unique<float[]>(s);
-	E = std::make_unique<float[]>(s);
+#ifdef SPRAWL_PRUNE
+	tempBuffer1 = std::make_unique<float[]>(type->nRows);
+	tempBuffer2 = std::make_unique<float[]>(type->nColumns);
+#endif
 
-	randomInitH(); 
+	storage = std::make_unique<float[]>(s * N_DYNAMIC_MATRICES);
 
+	float* _storagePtr = storage.get();
+
+	matrices.resize(N_DYNAMIC_MATRICES);
+	for (int i = 0; i < N_DYNAMIC_MATRICES; i++) {
+		matrices[i] = _storagePtr;
+		_storagePtr += s;
+	}
+
+	float normalizator = .3f * powf((float)type->nColumns, -.5f);
+	for (int i = 0; i < s; i++) {
+
+		//matrices[0][i] = normalizator * (float)(i%2);
+		//matrices[0][i] = .2f * (UNIFORM_01 - .5f); // Risi Najarro
+		//matrices[0][i] = NORMAL_01 * normalizator;
+		matrices[0][i] = type->matricesR[3][i] + NORMAL_01 * normalizator; // lazy solution. Does not scale.
+	}
 	// zeroE(); not necessary, because Node_P::preTrialReset() should be called before any computation. 
 }
 
 void InternalConnexion_P::zeroE() {
-	int s = type->nLines * type->nColumns;
-	std::fill(E.get(), E.get() + s, 0.0f);
-}
-
-
-void InternalConnexion_P::randomInitH()
-{
-	
-	int s = type->nLines * type->nColumns;
+	int s = type->nRows * type->nColumns;
 	if (s == 0) return;
 
-	// Xavier or Kaiming ? No backprop so sticking with Kaiming
-	float normalizator = .3f * powf((float)type->nColumns, -.5f); 
-
-	for (int i = 0; i < s; i++) {
-
-		//H[i] = normalizator * (float)(i%2);
-		//H[i] = .2f * (UNIFORM_01 - .5f); // Risi Najarro
-		H[i] = NORMAL_01 * normalizator;
-
-	}
+#ifdef ABCD_ETA
+	std::fill(matrices[1], matrices[1] + s, 0.0f);
+#elif defined(SPRAWL_PRUNE)
+	std::fill(matrices[1], matrices[1] + s, 0.0f);
+	std::fill(matrices[2], matrices[2] + s, 0.0f);
+#endif
 }
+
 
 

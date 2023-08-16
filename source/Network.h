@@ -93,15 +93,10 @@ private:
 	// The contiguous inputs of the nodes
 	std::unique_ptr<float[]> inputArray;
 
-	// The contiguous inputs of the nodes, average (moving exponential) over the
-	// last inference steps with an evolved decay per neuron.
-	std::unique_ptr<float[]> inputArray_avg;
-
 	
 	std::unique_ptr<float[]> destinationArray;
-	std::unique_ptr<float[]> destinationArray_avg;
 #ifdef STDP
-	std::unique_ptr<float[]> destinationArray_preAvg;
+	std::unique_ptr<float[]> destinationArray_preSynAvg;
 #endif
 
 	// How many inferences were performed since last call to preTrialReset by the phenotype.

@@ -80,7 +80,7 @@ struct Node_G {
 	// stupid but thats the only way to do complex operations in an initializer list.
 	static int computeNCols(int* inS, int* outS, int nC) {
 		int cIn = nC > 0 ? outS[1] * nC : 0;
-		return inS[0] + MODULATION_VECTOR_SIZE + cIn;
+		return inS[0] + cIn;
 	}
 
 	int nChildren;
@@ -96,12 +96,11 @@ struct Node_G {
 	// Structs containing the constant, evolved, matrix of parameters linking internal nodes.
 	// The name specifies the type of node that takes the result of the matrix operations as inputs.
 	// nColumns = this.inputSize + MODULATION_VECTOR_SIZE + sum(children.inputSize)
-	InternalConnexion_G toChildren; // nLines = sum(children.inputSize) 
-	InternalConnexion_G toModulation; // nLines = MODULATION_VECTOR_SIZE
-	InternalConnexion_G toOutput; // nLines = outputSize
+	InternalConnexion_G toChildren; // nRows = sum(children.inputSize) 
+	InternalConnexion_G toOutput; // nRows = outputSize
 
 	int getNParameters() {
-		return toChildren.getNParameters() + toModulation.getNParameters() + toOutput.getNParameters();
+		return toChildren.getNParameters() + toOutput.getNParameters();
 	}
 	// Mutate real-valued floating point parameters.
 	void mutateFloats(float adjustedFMutationP);

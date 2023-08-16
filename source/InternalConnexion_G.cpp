@@ -2,7 +2,7 @@
 
 #include "InternalConnexion_G.h"
 
-// set in main
+// set in main.cpp
 float InternalConnexion_G::decayParametersInitialValue = -1.0f;
 
 // Normal mutation in the space of log(half-life constant). m default value is .15f.
@@ -27,24 +27,19 @@ inline float mutateDecayParam(float dp, float m)
 
 
 
-InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns) :
-	nLines(nLines), nColumns(nColumns)
+InternalConnexion_G::InternalConnexion_G(int nRows, int nColumns) :
+	nRows(nRows), nColumns(nColumns)
 {
 
-	int s = nLines * nColumns;
+	int s = nRows * nColumns;
+	if (s == 0) return;
 
 	float f0 = 1.0f;
-	if (s != 0) { f0 = powf((float)nColumns, -.5f); }
-	 
-
-	eta = std::make_unique<float[]>(s);
-	A = std::make_unique<float[]>(s);
-	B = std::make_unique<float[]>(s);
-	C = std::make_unique<float[]>(s);
-	D = std::make_unique<float[]>(s);
-	F = std::make_unique<float[]>(s);
-	G = std::make_unique<float[]>(s);
-
+	f0 = powf((float)nColumns, -.5f); 
+	
+	
+	storage = std::make_unique<float[]>(getNParameters());
+	float* _storagePtr = storage.get();
 
 	auto rand = [&s](float* vec, float b, float f) {
 		for (int i = 0; i < s; i++) {
@@ -58,104 +53,125 @@ InternalConnexion_G::InternalConnexion_G(int nLines, int nColumns) :
 		}
 	};
 
-	rand(A.get(), 0.0f, f0);
-	rand(B.get(), 0.0f, f0);
-	rand(C.get(), 0.0f, f0);
-	rand01(eta.get());
 
-	rand(D.get(), 0.0f, f0);
-	rand(F.get(), 0.0f, f0);
-	rand(G.get(), 0.0f, f0);
+	matrices01.resize(N_STATIC_MATRICES_01);
+	for (int i = 0; i < N_STATIC_MATRICES_01; i++) 
+	{
+		matrices01[i] = _storagePtr;
+		rand01(_storagePtr);
+		_storagePtr += s;
+	}
 
-	s = nLines;
+	matricesR.resize(N_STATIC_MATRICES_R);
+	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
+	{
+		matricesR[i] = _storagePtr;
+		rand(_storagePtr, 0.0f, f0);
+		_storagePtr += s;
+	}
 
-	kappa = std::make_unique<float[]>(s);
-	rand01(kappa.get());
+	s = nRows;
 
-#ifdef STDP
-	STDP_mu = std::make_unique<float[]>(s);
-	STDP_lambda = std::make_unique<float[]>(s);
-	rand01(STDP_mu.get());
-	rand01(STDP_lambda.get());
-#endif
+	vectors01.resize(N_STATIC_VECTORS_01);
+	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
+	{
+		vectors01[i] = _storagePtr;
+		rand01(_storagePtr);
+		_storagePtr += s;
+	}
+
+	vectorsR.resize(N_STATIC_VECTORS_R);
+	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
+	{
+		vectorsR[i] = _storagePtr;
+		rand(_storagePtr, 0.0f, f0);
+		_storagePtr += s;
+	}
+
 }
 
-InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc) {
-	
-	nLines = gc.nLines;
+InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc)
+{
+	nRows = gc.nRows;
 	nColumns = gc.nColumns;
 
-	int s = nLines * nColumns;
+	int s = nRows * nColumns;
 
-	eta = std::make_unique<float[]>(s);
-	A = std::make_unique<float[]>(s);
-	B = std::make_unique<float[]>(s);
-	C = std::make_unique<float[]>(s);
-	
+	storage = std::make_unique<float[]>(getNParameters());
+	std::copy(gc.storage.get(), gc.storage.get() + s, storage.get());
+	float* _storagePtr = storage.get();
 
-	std::copy(gc.eta.get(), gc.eta.get() + s, eta.get());
-	std::copy(gc.A.get(), gc.A.get() + s, A.get());
-	std::copy(gc.B.get(), gc.B.get() + s, B.get());
-	std::copy(gc.C.get(), gc.C.get() + s, C.get());
+	matrices01.resize(N_STATIC_MATRICES_01);
+	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
+	{
+		matrices01[i] = _storagePtr;
+		_storagePtr += s;
+	}
 
-	D = std::make_unique<float[]>(s);
-	F = std::make_unique<float[]>(s);
-	G = std::make_unique<float[]>(s);
+	matricesR.resize(N_STATIC_MATRICES_R);
+	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
+	{
+		matricesR[i] = _storagePtr;
+		_storagePtr += s;
+	}
 
-	std::copy(gc.D.get(), gc.D.get() + s, D.get());
-	std::copy(gc.F.get(), gc.F.get() + s, F.get());
-	std::copy(gc.G.get(), gc.G.get() + s, G.get());
+	s = nRows;
 
+	vectors01.resize(N_STATIC_VECTORS_01);
+	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
+	{
+		vectors01[i] = _storagePtr;
+		_storagePtr += s;
+	}
 
-	s = nLines;
-	
-	kappa = std::make_unique<float[]>(s);
-	std::copy(gc.kappa.get(), gc.kappa.get() + s, kappa.get());
-
-#ifdef STDP
-	STDP_mu = std::make_unique<float[]>(s);
-	STDP_lambda = std::make_unique<float[]>(s);
-	std::copy(gc.STDP_mu.get(), gc.STDP_mu.get() + s, STDP_mu.get());
-	std::copy(gc.STDP_lambda.get(), gc.STDP_lambda.get() + s, STDP_lambda.get());
-#endif
+	vectorsR.resize(N_STATIC_VECTORS_R);
+	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
+	{
+		vectorsR[i] = _storagePtr;
+		_storagePtr += s;
+	}
 }
 
 InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc) {
 
-	nLines = gc.nLines;
+	nRows = gc.nRows;
 	nColumns = gc.nColumns;
 
-	int s = nLines * nColumns;
+	int s = nRows * nColumns;
 
-	eta = std::make_unique<float[]>(s);
-	A = std::make_unique<float[]>(s);
-	B = std::make_unique<float[]>(s);
-	C = std::make_unique<float[]>(s);
+	storage = std::make_unique<float[]>(getNParameters());
+	std::copy(gc.storage.get(), gc.storage.get() + s, storage.get());
+	float* _storagePtr = storage.get();
 
-	std::copy(gc.eta.get(), gc.eta.get() + s, eta.get());
-	std::copy(gc.A.get(), gc.A.get() + s, A.get());
-	std::copy(gc.B.get(), gc.B.get() + s, B.get());
-	std::copy(gc.C.get(), gc.C.get() + s, C.get());
+	matrices01.resize(N_STATIC_MATRICES_01);
+	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
+	{
+		matrices01[i] = _storagePtr;
+		_storagePtr += s;
+	}
 
-	D = std::make_unique<float[]>(s);
-	F = std::make_unique<float[]>(s);
-	G = std::make_unique<float[]>(s);
+	matricesR.resize(N_STATIC_MATRICES_R);
+	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
+	{
+		matricesR[i] = _storagePtr;
+		_storagePtr += s;
+	}
 
-	std::copy(gc.D.get(), gc.D.get() + s, D.get());
-	std::copy(gc.F.get(), gc.F.get() + s, F.get());
-	std::copy(gc.G.get(), gc.G.get() + s, G.get());
+	s = nRows;
 
-	s = nLines;
-	
-	kappa = std::make_unique<float[]>(s);
-	std::copy(gc.kappa.get(), gc.kappa.get() + s, kappa.get());
+	vectors01.resize(N_STATIC_VECTORS_01);
+	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
+	{
+		vectors01[i] = _storagePtr;
+		_storagePtr += s;
+	}
 
-#ifdef STDP
-	STDP_mu = std::make_unique<float[]>(s);
-	STDP_lambda = std::make_unique<float[]>(s);
-	std::copy(gc.STDP_mu.get(), gc.STDP_mu.get() + s, STDP_mu.get());
-	std::copy(gc.STDP_lambda.get(), gc.STDP_lambda.get() + s, STDP_lambda.get());
-#endif
+	vectorsR.resize(N_STATIC_VECTORS_R);
+	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
+	{
+		vectorsR[i] = _storagePtr;
+		_storagePtr += s;
+	}
 
 	return *this;
 }
@@ -174,7 +190,7 @@ void InternalConnexion_G::mutateFloats(float p) {
 	constexpr float accumulatorClipRange = 1.0f;
 #endif
 
-	int size = nLines * nColumns;
+	int size = nRows * nColumns;
 	SET_BINOMIAL(size, p);
 
 	auto mutateMatrix = [&size, p, a, b, c](float* matrix)
@@ -200,75 +216,78 @@ void InternalConnexion_G::mutateFloats(float p) {
 		}
 	};
 	
-	mutateMatrix(A.get());
-	mutateMatrix(B.get());
-	mutateMatrix(C.get());
+	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
+	{
+		mutateDecayMatrix(matrices01[i]);
+	}
 
-	mutateDecayMatrix(eta.get());
+	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
+	{
+		mutateMatrix(matricesR[i]);
+	}
 
-	mutateMatrix(D.get());
-	mutateMatrix(F.get());
-	mutateMatrix(G.get());
-
-	size = nLines;
+	size = nRows;
 	SET_BINOMIAL(size, p);
 
-	mutateDecayMatrix(kappa.get());
+	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
+	{
+		mutateDecayMatrix(vectors01[i]);
+	}
 
-#ifdef STDP
-	mutateDecayMatrix(STDP_lambda.get());
-	mutateDecayMatrix(STDP_mu.get());
-#endif
+	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
+	{
+		mutateDecayMatrix(vectorsR[i]);
+	}
 
 }
 
 InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
 {
-	READ_4B(nLines, is);
+	READ_4B(nRows, is);
 	READ_4B(nColumns, is);
 
-	int s = nLines * nColumns;
+	storage = std::make_unique<float[]>(getNParameters());
+	is.read(reinterpret_cast<char*>(storage.get()), getNParameters() * sizeof(float));
 
-	eta = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(eta.get()), s * sizeof(float));
-	A = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(A.get()), s * sizeof(float));
-	B = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(B.get()), s * sizeof(float));
-	C = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(C.get()), s * sizeof(float));
+	float* _storagePtr = storage.get();
 
-	s = nLines;
+	int s = nRows * nColumns;
 
-	kappa = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(kappa.get()), s * sizeof(float));
+	matrices01.resize(N_STATIC_MATRICES_01);
+	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
+	{
+		matrices01[i] = _storagePtr;
+		_storagePtr += s;
+	}
 
-#ifdef STDP
-	STDP_mu = std::make_unique<float[]>(s);
-	STDP_lambda = std::make_unique<float[]>(s);
-	is.read(reinterpret_cast<char*>(STDP_mu.get()), s * sizeof(float));
-	is.read(reinterpret_cast<char*>(STDP_lambda.get()), s * sizeof(float));
-#endif
+	matricesR.resize(N_STATIC_MATRICES_R);
+	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
+	{
+		matricesR[i] = _storagePtr;
+		_storagePtr += s;
+	}
+
+	s = nRows;
+
+	vectors01.resize(N_STATIC_VECTORS_01);
+	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
+	{
+		vectors01[i] = _storagePtr;
+		_storagePtr += s;
+	}
+
+	vectorsR.resize(N_STATIC_VECTORS_R);
+	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
+	{
+		vectorsR[i] = _storagePtr;
+		_storagePtr += s;
+	}
 }
 
 void InternalConnexion_G::save(std::ofstream& os)
 {
-	WRITE_4B(nLines, os);
+	WRITE_4B(nRows, os);
 	WRITE_4B(nColumns, os);
 
-	int s = nLines * nColumns;
-
-	os.write(reinterpret_cast<const char*>(eta.get()), s * sizeof(float));
-	os.write(reinterpret_cast<const char*>(A.get()), s * sizeof(float));
-	os.write(reinterpret_cast<const char*>(B.get()), s * sizeof(float));
-	os.write(reinterpret_cast<const char*>(C.get()), s * sizeof(float));
-
-	s = nLines;
-
-	os.write(reinterpret_cast<const char*>(kappa.get()), s * sizeof(float));
-
-#ifdef STDP
-	os.write(reinterpret_cast<const char*>(STDP_mu.get()), s * sizeof(float));
-	os.write(reinterpret_cast<const char*>(STDP_lambda.get()), s * sizeof(float));
-#endif
+	os.write(reinterpret_cast<const char*>(storage.get()), getNParameters() * sizeof(float));
 }

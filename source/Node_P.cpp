@@ -4,7 +4,6 @@
 Node_P::Node_P(Node_G* _type, Node_G** nodes, int i, int iC, int* nC, int tNC) :
 	type(_type),
 	toChildren(&_type->toChildren),
-	toModulation(&_type->toModulation),
 	toOutput(&_type->toOutput)
 {
 	tNC *= nC[0];
@@ -14,50 +13,38 @@ Node_P::Node_P(Node_G* _type, Node_G** nodes, int i, int iC, int* nC, int tNC) :
 		children.emplace_back(nodes[iC + child_i], nodes, child_i, iC + tNC, nC+1, tNC);
 	}
 
-	toChildren.randomInitH();
-	toModulation.randomInitH();
-	toOutput.randomInitH();
 
 	// TotalM is not initialized (i.e. zeroed) because it is set at each inference
 	// by either the parent Node_P, or (for topNode) the parent Network.
 };
 
 
-void Node_P::setArrayPointers(float** iA, float** iA_avg, float** dA, float** dA_avg, float** dA_preAvg)
+void Node_P::setArrayPointers(float** iA, float** dArr, float** dArr_preSynAvg)
 {
 	inputArray = *iA;
-	inputArray_avg = *iA_avg;
-	destinationArray = *dA;
-	destinationArray_avg = *dA_avg;
+	destinationArray = *dArr;
 
-
-	*iA += type->inputSize + MODULATION_VECTOR_SIZE;
-	*iA_avg += type->inputSize + MODULATION_VECTOR_SIZE;
-
-	*dA += type->outputSize + MODULATION_VECTOR_SIZE;
-	*dA_avg += type->outputSize + MODULATION_VECTOR_SIZE;
-
+	*iA += type->inputSize;
+	*dArr += type->outputSize;
 
 #ifdef STDP
-	destinationArray_preAvg = *dA_preAvg;
-	*dA_preAvg += type->outputSize + MODULATION_VECTOR_SIZE;
+	destinationArray_preSynAvg = *dArr_preSynAvg;
+	*dArr_preSynAvg += type->outputSize;
 #endif
 
 	for (int i = 0; i < children.size(); i++) {
 		
 		*iA += children[i].type->outputSize;
-		*iA_avg += children[i].type->outputSize;
 
-		*dA += children[i].type->outputSize;
-		*dA_avg += children[i].type->outputSize;
+		*dArr += children[i].type->outputSize;
 #ifdef STDP
-		*dA_preAvg += children[i].type->outputSize;
+		*dArr_preSynAvg += children[i].type->outputSize;
 #endif
 
 	}
 
 	for (int i = 0; i < children.size(); i++) {
-		children[i].setArrayPointers(iA, iA_avg, dA, dA_avg, dA_preAvg);
+		children[i].setArrayPointers(iA, dArr, dArr_preSynAvg);
 	}
 }
 
@@ -69,7 +56,6 @@ void Node_P::preTrialReset() {
 	}
 
 	toChildren.zeroE();
-	toModulation.zeroE();
 	toOutput.zeroE();
 
 	// TotalM is not reinitialized (i.e. zeroed) because it is set at each inference
@@ -78,77 +64,64 @@ void Node_P::preTrialReset() {
 
 
 
-void Node_P::forward(bool firstCall) {
-	
-	// Modulation could be done on CPU while the GPU handles the bulk of the work. TODO benchmark to
-	// see if it is worth the efforrt (and 1 cycle of delay in modulation !!)
+#ifdef ABCD_ETA
+void Node_P::forward() {
 
-	// This lambda is used for all 3 propagations : modulation, children, output.
-	// It should be a GPU kernel.
-	auto forwardAndLocalUpdates = [this, firstCall](InternalConnexion_P& icp, int offset)
+
+	auto forwardAndLocalUpdates = [this](InternalConnexion_P& icp, int offset)
 	{
 		// Variables defined for readability.
 
-		int nl = icp.type->nLines;
+		int nr = icp.type->nRows;
 		int nc = icp.type->nColumns;
 
-		// destinationArray instead of inputArray yields better results ????? TODO
-		// Buffer overread though
-		float* modulation = inputArray + type->inputSize; 
-
-		float* H = icp.H.get();
-		float* E = icp.E.get();
+		float* H = icp.matrices[0];
+		float* E = icp.matrices[1];
 
 		
-		float* A = icp.type->A.get();
-		float* B = icp.type->B.get();
-		float* C = icp.type->C.get();
-		float* eta = icp.type->eta.get();
+		float* A = icp.type->matricesR[0];
+		float* B = icp.type->matricesR[1];
+		float* C = icp.type->matricesR[2];
+		float* D = icp.type->matricesR[3];
+		float* wMod = icp.type->matricesR[4];
 
-		float* D = icp.type->D.get();
-		float* F = icp.type->F.get();
-		float* G = icp.type->G.get();
+		float* eta = icp.type->matrices01[0];
 
-		float* kappa = icp.type->kappa.get();
 #ifdef STDP
-		float* mu = icp.type->STDP_mu.get();
-		float* lambda = icp.type->STDP_lambda.get();
+		float* mu = icp.type->vectors01[0];
+		float* lambda = icp.type->vectors01[1];
 #endif
 		
-		float* dA = destinationArray + offset;
-		float* dA_avg = destinationArray_avg + offset;
+		float* dArr = destinationArray + offset;
 #ifdef STDP
-		float* dA_preAvg = destinationArray_preAvg + offset;
+		float* dArr_preSynAvg = destinationArray_preSynAvg + offset;
 #endif
 		
 		// All those steps could be individually vectorized. In one block for compacity, as the CPU version 
 		// is not designed to achieve high performances. When explicitly mentionned, 2 steps can be swapped. 
 		// Otherwise, order matters.
 
-		for (int i = 0; i < nl; i++) {
+		for (int i = 0; i < nr; i++) {
 			int lineOffset = i * nc;
 
-			// 6 and 7, testing in front but can be in the back. If in the back, the 
-			// if (firstCall) is no longer necessary. But recommended ?
-			if (!firstCall && true) [[likely]]
+			// 6 and 7, testing in front but can be in the back.
+			if (true) 
 			{
+				float modulation = 0.0f;
+				for (int j = 0; j < nc; j++) {
+					modulation += wMod[lineOffset + j] * inputArray[j];
+				}
+
 				for (int j = 0; j < nc; j++) {
 					int matID = lineOffset + j;
 
 					// 6:  
-					// inputArray[j] - inputArray_avg[j] does not depend on the line and can therefore be precomputed 
-					// (here each substraction is computed redundantly nLines times.)
 					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-						(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]  
-							+ 5.0f * (inputArray[j] - inputArray_avg[j]) * 
-							(dA[i] + D[matID]* dA_avg[i]) * 
-							(F[matID] + H[matID] * G[matID])
-						);
-						
+						(A[matID] * inputArray[j] * dArr[i] + B[matID] * inputArray[j] + C[matID] * dArr[i] + D[matID]);
 
 
 					// 7:
-					H[matID] += E[matID] * modulation[0];
+					H[matID] += E[matID] * modulation;
 					H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
 				}
 			}
@@ -162,54 +135,43 @@ void Node_P::forward(bool firstCall) {
 
 			// 1:
 #ifdef STDP
-			if (firstCall) [[unlikely]] {
-				dA_preAvg[i] = preSynAct;
-			}
-			else [[likely]] {
-				dA_preAvg[i] = dA_preAvg[i] * (1.0f - mu[i]) + preSynAct; // * mu[i] ? TODO
-			}
+			
+			dArr_preSynAvg[i] = dArr_preSynAvg[i] * (1.0f - mu[i]) + preSynAct; // * mu[i] ? TODO
+			
 #endif
-
-			// 2:
-			dA_avg[i] = dA_avg[i] * (1.0f - kappa[i]) + dA[i] * kappa[i];
 
 			// 3:
 #ifdef STDP
-			dA[i] = tanhf(dA_preAvg[i]);
+			dArr[i] = tanhf(dArr_preSynAvg[i]);
 #else
-			dA[i] = tanhf(preSynAct);
+			dArr[i] = tanhf(preSynAct);
 #endif
 
-			// 4:
-			if (firstCall) [[unlikely]] {
-				dA_avg[i] = dA[i];
-			}
-
+			
 			// 5:
 #ifdef STDP
 			// acc_src's magnitude decreases when there is a significant activation.
 			// * 4.0f because lambda is in [0,1] so the magnitude would be too limited. 
-			dA_preAvg[i] -= lambda[i] * powf(dA[i], 2.0f * 1.0f + 1.0f) * 4.0f;
+			dArr_preSynAvg[i] -= lambda[i] * powf(dArr[i], 2.0f * 1.0f + 1.0f) * 4.0f;
 #endif
 
-			if (false) 
+			if (false)
 			{
+				float modulation = 0.0f;
+				for (int j = 0; j < nc; j++) {
+					modulation += wMod[lineOffset + j] * inputArray[j];
+				}
+
 				for (int j = 0; j < nc; j++) {
 					int matID = lineOffset + j;
 
 					// 6:  
-					// inputArray[j] - inputArray_avg[j] does not depend on the line and can therefore be precomputed 
-					// (here each substraction is computed redundantly nLines times.)
 					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-						(A[matID] * inputArray[j] * dA[i] + B[matID] * inputArray[j] + C[matID] * dA[i]
-							+ 5.0f * (inputArray[j] - inputArray_avg[j]) *
-							(dA[i] + D[matID] * dA_avg[i]) *
-							(F[matID] + H[matID] * G[matID])
-						);
+						(A[matID] * inputArray[j] * dArr[i] + B[matID] * inputArray[j] + C[matID] * dArr[i] + D[matID]);
 
 
 					// 7:
-					H[matID] += E[matID] * modulation[0];
+					H[matID] += E[matID] * modulation;
 					H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
 				}
 			}
@@ -217,23 +179,13 @@ void Node_P::forward(bool firstCall) {
 	};
 
 
-	// MODULATION A
-	{
-		forwardAndLocalUpdates(toModulation, type->outputSize);
-
-		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			inputArray[i + type->inputSize] = destinationArray[i + type->outputSize];
-		}
-	}
-
-
 	// CHILDREN
 	if (children.size() != 0) {
 
-		forwardAndLocalUpdates(toChildren, type->outputSize + MODULATION_VECTOR_SIZE);
+		forwardAndLocalUpdates(toChildren, type->outputSize);
 
 		// Each child must receive its modulation, input, and accumulated input. 
-		int id = type->outputSize + MODULATION_VECTOR_SIZE;
+		int id = type->outputSize;
 		for (int i = 0; i < children.size(); i++) {
 
 			std::copy(
@@ -242,23 +194,16 @@ void Node_P::forward(bool firstCall) {
 				children[i].inputArray
 			);
 
-			std::copy(
-				destinationArray_avg + id,
-				destinationArray_avg + id + children[i].type->inputSize,
-				children[i].inputArray_avg
-			);
-			
-
 			id += children[i].type->inputSize;
 		}
 
 		
 		for (int i = 0; i < children.size(); i++) {
-			children[i].forward(firstCall);
+			children[i].forward();
 		}
 
 		// children's output and average output must be retrieved.
-		id = type->inputSize + MODULATION_VECTOR_SIZE;
+		id = type->inputSize;
 		for (int i = 0; i < children.size(); i++) {
 			std::copy(
 				inputArray + id,
@@ -266,27 +211,229 @@ void Node_P::forward(bool firstCall) {
 				children[i].destinationArray
 			);
 
+			id += children[i].type->outputSize;
+		}
+	}
+	
+	// OUTPUT
+	forwardAndLocalUpdates(toOutput, 0);
+}
+#elif defined(SPRAWL_PRUNE) 
+void Node_P::forward() 
+{
+	constexpr float epsilon = .1f;
+
+	auto forwardAndLocalUpdates = [this](InternalConnexion_P& icp, int offset)
+	{
+		constexpr float epsilon = .1f;
+		
+		// Variables defined for readability.
+
+		int nr = icp.type->nRows;
+		int nc = icp.type->nColumns;
+
+		float* H = icp.matrices[0];
+		float* EA = icp.matrices[1];
+		float* EB = icp.matrices[2];
+
+		float* dBuffer = icp.matrices[3];
+
+		float* perRowBuffer = icp.tempBuffer1.get();
+		float* perColumnBuffer = icp.tempBuffer2.get();
+
+		float* alephA = icp.type->matricesR[0];
+		float* alephB = icp.type->matricesR[1];
+		float* bethA = icp.type->matricesR[2];
+		float* bethB = icp.type->matricesR[3];
+		float* wModA = icp.type->matricesR[4];
+		float* wModB = icp.type->matricesR[5];
+
+		float* etaA = icp.type->matrices01[0];
+		float* etaB = icp.type->matrices01[1];
+
+#ifdef STDP
+		float* mu = icp.type->vectors01[0];
+		float* lambda = icp.type->vectors01[1];
+#endif
+
+		float* dArr = destinationArray + offset;
+#ifdef STDP
+		float* dArr_preSynAvg = destinationArray_preSynAvg + offset;
+#endif
+
+		// All those steps could be individually vectorized. In one block for compacity, as the CPU version 
+		// is not designed to achieve high performances. When explicitly mentionned, 2 steps can be swapped. 
+		// Otherwise, order matters.
+		
+		// 0 
+		int matID = 0;
+		float SinvY2 = 0.0f;
+		for (int i = 0; i < nr; i++) {
+			float y2 = dArr[i] * dArr[i];
+			for (int j = 0; j < nc; j++) {
+				// since dij is multiplied by yi*yi everywhere it appears in the formula, 
+				// I pre multiply in place each line of the d matrix by y².
+				dBuffer[matID] = (H[matID] * alephA[matID] + bethA[matID]) * y2; 
+			}
+			perRowBuffer[i] = 1.0f / (y2 + epsilon); 
+			SinvY2 += perRowBuffer[i];
+		}
+
+		// 1
+		for (int j = 0; j < nc; j++) {
+			float sdy2 = 0.0f;
+			for (int i = 0; i < nr; i++) {
+				sdy2 += dBuffer[j + i * nc];
+			}
+			perColumnBuffer[j] = sdy2;
+		}
+		
+		
+		for (int i = 0; i < nr; i++) {
+			int lineOffset = i * nc;
+
+			// 2
+			float modulation = 0.0f;
+			for (int j = 0; j < nc; j++) {
+				modulation += wModA[lineOffset + j] * inputArray[j];
+			}
+
+			// 3
+			for (int j = 0; j < nc; j++) {
+				matID = lineOffset + j;
+
+				EA[matID] = (1.0f - etaA[matID]) * EA[matID] + etaA[matID] * inputArray[j] * dArr[i] *
+					(dBuffer[matID] * SinvY2 - perRowBuffer[i] * perColumnBuffer[j]);
+
+
+				H[matID] += EA[matID] * modulation;
+				H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
+			}
+
+
+
+			// 4
+			float preSynAct = 0.0f;
+			for (int j = 0; j < nc; j++) {
+				preSynAct += H[lineOffset + j] * inputArray[j];
+			}
+
+			// 5
+#ifdef STDP
+			dArr_preSynAvg[i] = dArr_preSynAvg[i] * (1.0f - mu[i]) + preSynAct; // * mu[i] ? TODO
+			dArr[i] = tanhf(dArr_preSynAvg[i]);
+#else
+			dArr[i] = tanhf(preSynAct);
+#endif
+
+
+			// 6
+#ifdef STDP
+			// acc_src's magnitude decreases when there is a significant activation.
+			// * 4.0f because lambda is in [0,1] so the magnitude would be too limited. 
+			// tanh(x)^3 = tanh(x)*(1-tanh'(x)), 1 = max(tanh'), tanh'>0.
+			dArr_preSynAvg[i] -= lambda[i] * powf(dArr[i], 2.0f * 1.0f + 1.0f) * 4.0f;
+#endif
+		}
+
+		// 7
+		for (int j = 0; j < nc; j++) {
+			perColumnBuffer[j] = inputArray[j] * inputArray[j];
+		}
+		matID = 0;
+		for (int i = 0; i < nr; i++) {
+			float sdx2 = 0.0f;
+			float sHx2 = 0.0f;
+			for (int j = 0; j < nc; j++) {
+				dBuffer[matID] = H[matID] * alephB[matID] + bethB[matID];
+				sdx2 += dBuffer[matID] * perColumnBuffer[j];
+				sHx2 += H[matID] * perColumnBuffer[j];
+				matID++;
+			}
+			perRowBuffer[i] = sdx2;
+			matID -= nc;
+			for (int j = 0; j < nc; j++) {
+				dBuffer[matID] *= sHx2;
+				matID++;
+			}
+		}
+
+		// 8
+		matID = 0;
+		for (int j = 0; j < nc; j++) {
+			float modulation = 0.0f;
+			for (int i = 0; i < nr; i++) {
+				// it is not specified anywhere that wModB has the same dimensions as the other matrices,
+				// beside maybe in the amplitudes at initialisation and mutation. We ignore it and treat it
+				// as if it had transposed dimensions, i.e. nCols rows and nRows columns. This way we can do
+				// a matrix*vector multiplication, instead of a vector*matrix multiplication.
+				modulation += wModB[matID] * dArr[i]; 
+				matID++;
+			}
+			perColumnBuffer[j] = modulation;
+		}
+
+		// 9
+		matID = 0;
+		for (int i = 0; i < nr; i++) {
+			for (int j = 0; j < nc; j++) {
+				EB[matID] = (1.0f - etaB[matID]) * EB[matID] + etaB[matID] * inputArray[j] * dArr[i] *
+					(dBuffer[matID] - H[matID] * perRowBuffer[i]);
+
+
+				H[matID] += EB[matID] * perColumnBuffer[j];
+				H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
+				matID++;
+			}
+		}
+
+
+	};
+
+
+	// CHILDREN
+	if (children.size() != 0) {
+
+		forwardAndLocalUpdates(toChildren, type->outputSize);
+
+		// Each child must receive its modulation, input, and accumulated input. 
+		int id = type->outputSize;
+		for (int i = 0; i < children.size(); i++) {
+
 			std::copy(
-				inputArray_avg + id,
-				inputArray_avg + id + children[i].type->outputSize,
-				children[i].destinationArray_avg
+				destinationArray + id,
+				destinationArray + id + children[i].type->inputSize,
+				children[i].inputArray
+			);
+
+			id += children[i].type->inputSize;
+		}
+
+
+		for (int i = 0; i < children.size(); i++) {
+			children[i].forward();
+		}
+
+		// children's output and average output must be retrieved.
+		id = type->inputSize;
+		for (int i = 0; i < children.size(); i++) {
+			std::copy(
+				inputArray + id,
+				inputArray + id + children[i].type->outputSize,
+				children[i].destinationArray
 			);
 
 			id += children[i].type->outputSize;
 		}
 	}
 
-
-	// MODULATION B
-	if (children.size() != 0) {
-		forwardAndLocalUpdates(toModulation, type->outputSize);
-
-		for (int i = 0; i < MODULATION_VECTOR_SIZE; i++) {
-			inputArray[i + type->inputSize] = destinationArray[i + type->outputSize];
-		}
-	}
-
-	
 	// OUTPUT
 	forwardAndLocalUpdates(toOutput, 0);
 }
+#elif defined(PREDICTIVE_CODING)
+void Node_P::forward(bool firstCall)
+{
+
+}
+#endif
+

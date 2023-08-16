@@ -142,12 +142,18 @@ void CartPoleTrial::step(const float* actions) {
 	if (abs(theta) > .21f || abs(x) > 2.5f || currentNStep >= STEP_LIMIT) isTrialOver = true; 
 	if (isTrialOver) return;
 
+	if (actions[0] != actions[0]) // i.e. is NaN
+	{
+		std::cout << "NETWORK OUTPUT NaN" << std::endl;
+		return;
+	}
+
 	currentNStep++;
 	score += 1.0f;
 
 	// To give time to the initial observation to propagate to the network. Avoiding a cold start,
 	// in case the initial observation requires quick actions. This hinders outer and inner learning though.
-	if (currentNStep < 5) return; 
+	if (currentNStep < 2) return; 
 
 
 	//if (currentNStep % 2 == 0) return;  Giving the network twice the "time to think" worsens performances. 
