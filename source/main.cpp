@@ -73,30 +73,48 @@ int main()
 
     GroupTrial groupTrial(innerTrial, nAgentsPerGroup, channelSize);
 
- 
-    /*const int nLayers = 3;
-    int inSizes[nLayers] = { groupTrial.netInSize, 8, 4};
-    int outSizes[nLayers] = { groupTrial.netOutSize, 7, 3};
+    int trialObservationsSize = groupTrial.netInSize;
+    int trialActionsSize = groupTrial.netOutSize;    
+#ifdef NO_GROUP 
+    trialObservationsSize = groupTrial.innerTrial->netInSize;   
+    trialActionsSize = groupTrial.innerTrial->netOutSize;       
+#endif
+
+    int inputInterfaceSize = 4;
+    int outputInterfaceSize = 4;
+
+    const int inputMLPnLayers = 2;  // >= 1
+    const int outputMLPnLayers = 2; // >= 1
+
+    if (inputMLPnLayers == 0) inputInterfaceSize = trialObservationsSize;
+    if (outputMLPnLayers == 0) outputInterfaceSize = trialActionsSize;
+
+    int inputMLPsizes[inputMLPnLayers+1] = { trialObservationsSize, 5, inputInterfaceSize };
+    int outputMLPsizes[outputMLPnLayers+1] = { outputInterfaceSize, 3, trialActionsSize };
+
+    /* 
+    // A structurally non trivial example for debugging
+    const int nLayers = 3;
+    int inSizes[nLayers] = { inputInterfaceSize, 8, 4};
+    int outSizes[nLayers] = { outputInterfaceSize, 7, 3};
     int nChildrenPerLayer[nLayers] = {2, 1, 0};
     int nEvolvedModulesPerLayer[nLayers] = {64, 128, 128};
-    float moduleReplacedFractions[nLayers] = {.3f, .3f, .3f};*/
+    float moduleReplacedFractions[nLayers] = {.3f, .3f, .3f};
+    */
 
     const int nLayers = 1;
-    int inSizes[nLayers] = { groupTrial.netInSize};
-    int outSizes[nLayers] = { groupTrial.netOutSize};
-    int nChildrenPerLayer[nLayers] = { 0 };
+    int inSizes[nLayers] = { inputInterfaceSize };
+    int outSizes[nLayers] = { outputInterfaceSize };
+    int nChildrenPerLayer[nLayers] = { 0 }; // Must end with 0
     int nEvolvedModulesPerLayer[nLayers] = { 64 };
-    float moduleReplacedFractions[nLayers] = { .3f };
+    float moduleReplacedFractions[nLayers] = { .3f }; // must be in [0,.5]
 
-#ifdef NO_GROUP 
-    inSizes[0] = groupTrial.innerTrial->netInSize;   // DO NOT EDIT
-    outSizes[0] = groupTrial.innerTrial->netOutSize; // DO NOT EDIT
-#endif
 
     InternalConnexion_G::decayParametersInitialValue = .3f;
 
     PopulationEvolutionParameters params;
-    params.nSpecimens = 128 * nAgentsPerGroup; 
+
+    params.nSpecimens = 128;
     params.nTrialsPerGroup = 2;
     params.maxNParents = 10;
     params.nLayers = nLayers;
@@ -104,12 +122,23 @@ int main()
     params.outSizes = outSizes;
     params.nChildrenPerLayer = nChildrenPerLayer;
     params.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
-    params.moduleReplacedFractions = moduleReplacedFractions; //in [0,.5]
+    params.moduleReplacedFractions = moduleReplacedFractions; 
     params.networkReplacedFraction = .2f; //in [0,.5]
     params.voteValue = .3f; // > 0
     params.accumulatedFitnessDecay = .9f; //in [0,1]
     params.baseMutationProbability = 1.0f;//in [0,1]
     params.consanguinityDistance = 3;  // MUST BE >= 1
+
+    params.useInMLP = false;  // If false, all parameters regarding in  MLPs have no incidence
+    params.useOutMLP = false; // If false, all parameters regarding out MLPs have no incidence
+    params.inputMLPnLayers = inputMLPnLayers;  
+    params.outputMLPnLayers = outputMLPnLayers;  
+    params.inMLPReplacedFraction = .3f; // must be in [0,.5]
+    params.outMLPReplacedFraction = .3f;// must be in [0,.5]
+    params.inputMLPsizes = inputMLPsizes;  
+    params.outputMLPsizes = outputMLPsizes;  
+    params.nInMLPs = 64;
+    params.nOutMLPs = 64;
 
 
     int nSteps = 10000;

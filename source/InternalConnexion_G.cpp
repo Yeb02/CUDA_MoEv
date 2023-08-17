@@ -176,7 +176,7 @@ InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc
 	return *this;
 }
 
-void InternalConnexion_G::mutateFloats(float p) {
+void InternalConnexion_G::mutate(float p) {
 
 	//param(t+1) = (b+a*N1)*param(t) + c*N2
 	//const float sigma = powf((float)nColumns, -.5f);
@@ -185,10 +185,6 @@ void InternalConnexion_G::mutateFloats(float p) {
 	const float b = 1.0f-a*.3f;
 	const float c = a;
 
-#ifdef GUIDED_MUTATIONS
-	// w += clip[-accumulatorClipRange,accumulatorClipRange](accumulator)
-	constexpr float accumulatorClipRange = 1.0f;
-#endif
 
 	int size = nRows * nColumns;
 	SET_BINOMIAL(size, p);

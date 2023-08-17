@@ -43,5 +43,5 @@ struct InternalConnexion_G {
 			+ nRows * (N_STATIC_VECTORS_01 + N_STATIC_VECTORS_R);
 	}
 
-	void mutateFloats(float p);
+	void mutate(float p);
 };

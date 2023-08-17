@@ -11,6 +11,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="source\MLP_G.h" />
+    <ClInclude Include="source\MLP_P.h" />
     <ClInclude Include="source\Node_G.h" />
     <ClInclude Include="source\Node_P.h" />
     <ClInclude Include="source\config.h" />
@@ -23,6 +25,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\main.cpp" />
+    <ClCompile Include="source\MLP_G.cpp" />
+    <ClCompile Include="source\MLP_P.cpp" />
     <ClCompile Include="source\Node_G.cpp" />
     <ClCompile Include="source\Node_P.cpp" />
     <ClCompile Include="source\InternalConnexion_G.cpp" />

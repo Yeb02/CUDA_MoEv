@@ -13,6 +13,8 @@
 #include "Random.h"
 #include "Node_P.h"
 #include "Node_G.h"
+#include "MLP_G.h"
+#include "MLP_P.h"
 
 
 
@@ -51,7 +53,7 @@ public:
 	//***********************************************************************//
 	
 
-	void createPhenotype(Node_G** nodes);
+	void createPhenotype(Node_G** nodes, MLP_P* inMLP, MLP_P* outMLP);
 	void destroyPhenotype();
 
 	// Sets to 0 the dynamic elements of the phenotype. 
@@ -79,6 +81,9 @@ public:
 	static int* outS;
 	static int* nC;
 	static int nLayers;
+
+	std::unique_ptr<MLP_P> inMLP;
+	std::unique_ptr<MLP_P> outMLP;
 
 private:
 

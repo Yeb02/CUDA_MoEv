@@ -40,10 +40,10 @@ struct PopulationEvolutionParameters {
 	// layer by layer number of evolved modules. 
 	int* nEvolvedModulesPerLayer;
 
-	// layer by layer target fraction of the modules that is replaced at the end of a group stage.
+	// layer by layer target fraction of the modules that is replaced at the end of a module cycle.
 	float* moduleReplacedFractions;
 
-	// target fraction of the networks that is replaced at the end of a group stage.
+	// target fraction of the networks that is replaced at the end of a network cycle.
 	float networkReplacedFraction;
 
 	// the fitness at this step, for both network and modules, is an average over the trials of 
@@ -60,6 +60,22 @@ struct PopulationEvolutionParameters {
 	// Positive integer value. Specimens whose phenotypic distance to the primary parent are below it
 	// are not used for combination. MUST BE >= 1
 	int consanguinityDistance;
+
+	// Whether or not to use an evolved (fixed during lifetime) MLP to pre-process the observations
+	// of the environment and post process the dynamic network's decisions.
+	bool useInMLP, useOutMLP;
+
+	// >= 1. The number of fully connected layers the MLP has. 
+	int inputMLPnLayers, outputMLPnLayers;
+
+	// layer by layer target fraction of the MLPs that is replaced at the end of a module cycle.
+	float inMLPReplacedFraction, outMLPReplacedFraction;
+
+	// the layer sizes of the MLPs
+	int* inputMLPsizes, *outputMLPsizes;
+
+	// The number of evolved MLPs. 
+	int nInMLPs, nOutMLPs;
 
 	//defaults. The fields that are not set here MUST be filled outside !
 	PopulationEvolutionParameters() {
@@ -191,7 +207,7 @@ struct PhylogeneticNode
 	}
 };
 
-// A group of a fixed number of individuals, optimized with a genetic algorithm.
+
 class Population {
 
 public:	
@@ -225,6 +241,17 @@ public:
 		this->baseMutationProbability = params.baseMutationProbability;
 		this->consanguinityDistance = params.consanguinityDistance;
 
+		this->useInMLP = params.useInMLP;
+		this->useOutMLP = params.useOutMLP;
+		this->inMLPnLayers = params.inputMLPnLayers;
+		this->outMLPnLayers = params.outputMLPnLayers;
+		this->inMLPReplacedFraction = params.inMLPReplacedFraction;
+		this->outMLPReplacedFraction = params.outMLPReplacedFraction; 
+		this->inMLPsizes = params.inputMLPsizes;
+		this->outMLPsizes = params.outputMLPsizes;
+		this->nInMLPs = params.nInMLPs;
+		this->nOutMLPs = params.nOutMLPs; 
+
 	}
 
 	
@@ -236,8 +263,10 @@ private:
 	// the fitness per group per trial. (1 line = 1 trial)
 	float* groupFitnesses;
 
-	// Used to hold the probabilities over networks or modules when creating offsprings. Here to spare
-	// allocations. Size max(nEvolvedModulesPerLayer[] & nSpecimens)
+	// Pre allocated storage.
+	// Used to hold the probabilities over objects when creating offsprings, for
+	// either of networks, modules or MLPs. 
+	// Size = max(nEvolvedModulesPerLayer[], nSpecimens, nMLPin, nMLPout)
 	std::unique_ptr<float[]> probabilities;
 
 	// Layer by layer total number of modules in a network. Computed once as a util.
@@ -245,9 +274,23 @@ private:
 
 #ifdef SPARSE_MUTATION_AND_COMBINATIONS
 	// the fraction of the total number of parameters that will be mutated in a module
-	// when mutateFloats(mutationsProbabilitiesPerLayer[l]) is called
+	// when mutate(mutationsProbabilitiesPerLayer[l]) is called
 	std::unique_ptr<float[]> mutationsProbabilitiesPerLayer;
 #endif
+	
+	float inMLPmutationProbability, outMLPmutationProbability;
+	float currentInMLPReplacementTreshold, currentOutMLPReplacementTreshold;
+	MLP_G** inMLPs;
+	MLP_G** outMLPs;
+	std::vector<MLP_G*> toBeDestroyedInMLPs, toBeDestroyedOutMLPs;
+	PhylogeneticNode** inMLPphylogeneticTree;
+	PhylogeneticNode** outMLPphylogeneticTree;
+	void replaceMLPs();
+	// inOrOut true if an inMLP must be created, false if it is an outMLP.
+	MLP_G* createMLPChild(PhylogeneticNode* primaryParent, bool inOrOut); 
+	void deleteUnusedMLPs();
+	void zeroMLPsaccumulators();
+
 
 	// Layer by layer lifetime fitness threshold for modules. Dynamic quantities, adjusted after each
 	// replacement step to match the actual replaced fraction to moduleReplenishments more closely at the next step.
@@ -286,8 +329,10 @@ private:
 
 	void deleteUnusedModules();
 
+	void zeroModulesAccumulators();
+
 	// Finds the secondary parents, computes the coefficients, and creates the interpolated child.
-	Node_G* createChild(PhylogeneticNode* primaryParent, int moduleLayer);
+	Node_G* createModuleChild(PhylogeneticNode* primaryParent, int moduleLayer);
 	
 	void createPhenotype(Network* n);
 
@@ -342,4 +387,9 @@ private:
 	float accumulatedFitnessDecay;
 	float baseMutationProbability;
 	int consanguinityDistance;
+	bool useInMLP, useOutMLP; 
+	int inMLPnLayers, outMLPnLayers;
+	float inMLPReplacedFraction, outMLPReplacedFraction;
+	int* inMLPsizes, * outMLPsizes;
+	int nInMLPs, nOutMLPs; 
 };

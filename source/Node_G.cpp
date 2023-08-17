@@ -5,7 +5,7 @@ Node_G::Node_G(int* inS, int* outS, int nC) :
 	toChildren(nC > 0 ? nC * inS[1] : 0, computeNCols(inS, outS, nC)),
 	toOutput(outS[0], computeNCols(inS, outS, nC))
 {
-	isInModuleArray = false;
+	isStillEvolved = false;
 	tempFitnessAccumulator = 0.0f;
 	nTempFitnessAccumulations = 0;
 	lifetimeFitness = 0.0f;
@@ -21,7 +21,7 @@ Node_G::Node_G(Node_G* n) {
 	toChildren = n->toChildren;
 	toOutput = n->toOutput;
 
-	isInModuleArray = false;
+	isStillEvolved = false;
 	tempFitnessAccumulator = 0.0f;
 	nTempFitnessAccumulations = 0;
 	lifetimeFitness = 0.0f;
@@ -106,7 +106,7 @@ Node_G::Node_G(std::ifstream& is) {
 	toChildren = InternalConnexion_G(is);
 	toOutput = InternalConnexion_G(is);
 
-	isInModuleArray = false;
+	isStillEvolved = false;
 }
 
 void Node_G::save(std::ofstream& os) {
@@ -118,10 +118,10 @@ void Node_G::save(std::ofstream& os) {
 	toOutput.save(os);
 }
 
-void Node_G::mutateFloats(float adjustedFMutationP)
+void Node_G::mutate(float adjustedFMutationP)
 {
-	toChildren.mutateFloats(adjustedFMutationP);
-	toOutput.mutateFloats(adjustedFMutationP);
+	toChildren.mutate(adjustedFMutationP);
+	toOutput.mutate(adjustedFMutationP);
 }
 
 

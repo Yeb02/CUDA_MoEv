@@ -28,7 +28,13 @@ Network::Network(int nTrialsPerGroup)
 
 
 float* Network::getOutput() {
-	return topNodeP->destinationArray;
+	if (outMLP.get() != nullptr) {
+		return outMLP->output;
+	}
+	else {
+		return topNodeP->destinationArray;
+	}
+	
 }
 
 
@@ -45,8 +51,12 @@ void Network::destroyPhenotype() {
 }
 
 
-void Network::createPhenotype(Node_G** _nodes) {
+void Network::createPhenotype(Node_G** _nodes, MLP_P* _inMLP, MLP_P* _outMLP) {
 	if (topNodeP.get() == NULL) {
+
+		inMLP.reset(_inMLP);
+		outMLP.reset(_outMLP);
+
 		nodes.reset(_nodes);
 
 		topNodeP.reset(new Node_P(nodes[0], nodes.get(), 0, 1, nC, 1));
@@ -95,9 +105,23 @@ void Network::preTrialReset() {
 
 void Network::step(float* input) {
 
-	std::copy(input, input+inS[0], topNodeP->inputArray);
+	if (inMLP.get() != nullptr) 
+	{
+		inMLP->forward(input, nullptr, false);
+		std::copy(inMLP->output, inMLP->output + inS[0], topNodeP->inputArray);
+	}
+	else {
+		std::copy(input, input + inS[0], topNodeP->inputArray);
+	}
+	
 
 	topNodeP->forward();
+
+
+	if (outMLP.get() != nullptr)
+	{
+		outMLP->forward(topNodeP->destinationArray, nullptr, false);
+	}
 
 	nInferencesOverLifetime++;
 	nInferencesOverTrial++;

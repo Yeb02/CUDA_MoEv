@@ -87,7 +87,7 @@ struct Node_G {
 	int inputSize, outputSize; // >= 1
 
 	// For external use by the network and population.
-	bool isInModuleArray;
+	bool isStillEvolved;
 	float tempFitnessAccumulator;
 	int nTempFitnessAccumulations;
 	float lifetimeFitness;
@@ -103,7 +103,7 @@ struct Node_G {
 		return toChildren.getNParameters() + toOutput.getNParameters();
 	}
 	// Mutate real-valued floating point parameters.
-	void mutateFloats(float adjustedFMutationP);
+	void mutate(float adjustedFMutationP);
 
 	static Node_G* combine(Node_G** parents, float* weights, int nParents);
 };

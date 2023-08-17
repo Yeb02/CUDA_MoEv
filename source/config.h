@@ -21,7 +21,8 @@
 
 
 // options still in the files : H init (NodeP), trial uses same seed at reset (trial.h ifndef NO_GROUP, population.cpp
-// evaluateNetsIndividually() ifdef NO_GROUP), n selections and group shuffles (population.cpp evolve())
+// evaluateNetsIndividually() ifdef NO_GROUP), length of networks cycle and modules/MLPs cycles (population.cpp evolve())
+// initial elimination threshold for networks, modules, MLPs (population.cpp population())
 
 // When defined, CPU functions replace CUDA kernels. Used for debugging purposes.
 #define NO_CUDA
@@ -44,11 +45,6 @@
 #define MAX_PHYLOGENETIC_DEPTH 10
 
 
-//#define PREDICTIVE_CODING
-
-
-#ifndef PREDICTIVE_CODING
-
 // étayage élagage dans mes notes (étoffage élagage dans les plus anciennes)
 #define SPRAWL_PRUNE
 
@@ -59,8 +55,6 @@
 // When defined, presynaptic activities of complexNodes (topNode excepted) are a decaying sum of past inputs. This
 // sums decays with time and also as a function of the magnitude of the postsynaptic activation.
 #define STDP
-
-#endif //PREDICTIVE_CODING
 
 
 //******************* END OF PARAMETERS CHOICES ***************//

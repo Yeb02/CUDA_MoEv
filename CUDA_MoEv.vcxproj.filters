@@ -36,6 +36,12 @@
     <ClInclude Include="source\Trial.h">
       <Filter>headers</Filter>
     </ClInclude>
+    <ClInclude Include="source\MLP_P.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MLP_G.h">
+      <Filter>headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="source\Node_G.cpp">
@@ -63,6 +69,12 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\main.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\MLP_G.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="source\MLP_P.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>

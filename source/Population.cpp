@@ -77,9 +77,8 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 	modules.reserve(nLayers);
 	modules.resize(nLayers);
 
-	phylogeneticTrees.resize(nLayers);
 	phylogeneticTrees.reserve(nLayers);
-
+	phylogeneticTrees.resize(nLayers);
 
 	for (int i = 0; i < nLayers; i++) 
 	{
@@ -88,18 +87,49 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 		for (int j = 0; j < nEvolvedModulesPerLayer[i]; j++) {
 
 			modules[i][j] = new Node_G(inSizes+i, outSizes+i, nChildrenPerLayer[i]);
-			modules[i][j]->isInModuleArray = true;
+			modules[i][j]->isStillEvolved = true;
 
 			phylogeneticTrees[i][j] = new PhylogeneticNode(nullptr, j);
 		}
 	}
 
+	if (useInMLP) 
+	{
+		inMLPphylogeneticTree = new PhylogeneticNode*[nInMLPs];
+		inMLPs = new MLP_G*[nInMLPs];
+
+		for (int j = 0; j < nInMLPs; j++) {
+
+			inMLPs[j] = new MLP_G(inMLPsizes, inMLPnLayers);
+			inMLPs[j]->isStillEvolved = true;
+
+			inMLPphylogeneticTree[j] = new PhylogeneticNode(nullptr, j);
+		}
+	}
+
+	if (useOutMLP)
+	{
+		outMLPphylogeneticTree = new PhylogeneticNode * [nOutMLPs];
+		outMLPs = new MLP_G * [nOutMLPs];
+
+		for (int j = 0; j < nOutMLPs; j++) {
+
+			outMLPs[j] = new MLP_G(outMLPsizes, outMLPnLayers);
+			outMLPs[j]->isStillEvolved = true;
+
+			outMLPphylogeneticTree[j] = new PhylogeneticNode(nullptr, j);
+		}
+	}
+
 	groupFitnesses = new float[nGroups * nTrialsPerGroup];
 
+	// TODO -.7 arbitrary. As it only affects initialization, it can stay here, but
+	// work of satisfactory values must be done.
 	currentModuleReplacementTreshold = std::make_unique<float[]>(nLayers);
-	for (int l = 0; l < nLayers; l++) currentModuleReplacementTreshold[l] = -.7f;  // TODO arbitrary
-	currentNetworkReplacementTreshold = -.7f;
-
+	for (int l = 0; l < nLayers; l++) currentModuleReplacementTreshold[l] = -.7f;  // <0
+	currentNetworkReplacementTreshold = -.7f; // <0
+	currentInMLPReplacementTreshold = -.7f;// <0
+	currentOutMLPReplacementTreshold = -.7f;// <0
 
 	int probabilitiesSize = nSpecimens;
 	for (int l = 0; l < nLayers; l++)
@@ -108,16 +138,27 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 			probabilitiesSize = nEvolvedModulesPerLayer[l];
 		}
 	}
+	if (useInMLP  && probabilitiesSize < nInMLPs) probabilitiesSize = nInMLPs;
+	if (useOutMLP && probabilitiesSize < nOutMLPs) probabilitiesSize = nOutMLPs;
 	probabilities = std::make_unique<float[]>(probabilitiesSize);
 
 
 	mutationsProbabilitiesPerLayer = std::make_unique<float[]>(nLayers);
 	for (int l = 0; l < nLayers; l++)
 	{
-		// TODO better
-		//mutationsProbabilitiesPerLayer[l] = BASE_MUTATION_P * powf((float)modules[l][0]->getNParameters(), -.5f); 
-		mutationsProbabilitiesPerLayer[l] = baseMutationProbability / log2f((float)modules[l][0]->getNParameters()); 
+		// TODO better. The goal here is to lower the rate of mutation as the number of parameters grow.
+		
+		mutationsProbabilitiesPerLayer[l] = baseMutationProbability 
+			/ log2f((float)modules[l][0]->getNParameters());
+			// / (log2f(powf(2.0f, 8.0f) + (float)modules[l][0]->getNParameters()) - 8.0f + 1.0f);
+		    // * powf((float)modules[l][0]->getNParameters(), -.5f);
 	}
+	if (useInMLP) inMLPmutationProbability = baseMutationProbability /
+		(log2f(powf(2.0f, 8.0f) + (float)inMLPs[0]->getNParameters()) - 8.0f + 1.0f);
+
+	if (useOutMLP) outMLPmutationProbability = baseMutationProbability /
+		(log2f(powf(2.0f, 8.0f) + (float)outMLPs[0]->getNParameters()) - 8.0f + 1.0f);
+
 
 	nNodesPerNetwork = 0;
 	int inputArraySize = 0;
@@ -173,9 +214,37 @@ Population::~Population()
 			delete phylogeneticTrees[i][j];
 		}
 		delete[] modules[i];
-
 		delete[] phylogeneticTrees[i];
 	}
+
+	if (useInMLP)
+	{
+		for (int j = 0; j < nInMLPs; j++) {
+			delete inMLPphylogeneticTree[j];
+			delete inMLPs[j];
+		}
+		delete[] inMLPphylogeneticTree;
+		delete[] inMLPs;
+
+		for (int i = 0; i < toBeDestroyedInMLPs.size(); i++) {
+			delete toBeDestroyedInMLPs[i];
+		}
+	}
+
+	if (useOutMLP)
+	{
+		for (int j = 0; j < nOutMLPs; j++) {
+			delete outMLPphylogeneticTree[j];
+			delete outMLPs[j];
+		}
+		delete[] outMLPphylogeneticTree;
+		delete[] outMLPs;
+
+		for (int i = 0; i < toBeDestroyedOutMLPs.size(); i++) {
+			delete toBeDestroyedOutMLPs[i];
+		}
+	}
+
 
 	for (int i = 0; i < nSpecimens; i) {
 		delete networks[i];
@@ -194,39 +263,66 @@ Population::~Population()
 }
 
 
+void Population::zeroModulesAccumulators() {
+	for (int l = 0; l < nLayers; l++) {
+		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
+			modules[l][i]->tempFitnessAccumulator = 0.0f;
+			modules[l][i]->nTempFitnessAccumulations = 0;
+		}
+	}
+}
+
+
+void Population::zeroMLPsaccumulators() {
+	if (useInMLP) {
+		for (int i = 0; i < nInMLPs; i++) {
+			inMLPs[i]->tempFitnessAccumulator = 0.0f;
+			inMLPs[i]->nTempFitnessAccumulations = 0;
+		}
+	}
+	if (useOutMLP) {
+		for (int i = 0; i < nOutMLPs; i++) {
+			outMLPs[i]->tempFitnessAccumulator = 0.0f;
+			outMLPs[i]->nTempFitnessAccumulations = 0;
+		}
+	}
+}
+
+
 void Population::evolve(int nSteps) 
 {
 	// increasing these parameters refines the fitness computations, at a linear compute cost.
 	// (linear in nShuffles * nNetworksSelectionSteps)
 
 	// how many different groups a network will be part of between 2 network selection steps.
-	const int nShuffles = 3;
+	const int nNetworksShuffles = 3;
 
 	// how many selection steps there are for networks between two module selections
-	const int nNetworksSelectionSteps = 3;
+	const int nNetworksCyclesPerModuleCycle = 3;
 
 
 	for (int i = 0; i < nSteps; i++) 
 	{
 		
-		for (int j = 0; j < nNetworksSelectionSteps; j++)
+		zeroMLPsaccumulators();
+		zeroModulesAccumulators();
+
+		for (int j = 0; j < nNetworksCyclesPerModuleCycle; j++)
 		{
 
 #ifdef NO_GROUP
-			for (int k = 0; k < nShuffles; k++)
-			{
-				bool log = (k + j) == 0;
-				if (log) std::cout << "Step " << i << " ";
+			bool log = (j == 0);
+			if (log) std::cout << "Step " << i << " ";
 
-				evaluateNetsIndividually(log); 
-			}
+			evaluateNetsIndividually(log); 
 #else
+
 			// Sort networks by age
 			auto f = [](Network* n1, Network* n2) {return n1->nExperiencedTrials > n2->nExperiencedTrials; };
 			std::sort(networks, networks + nSpecimens, f);
 
 
-			for (int k = 0; k < nShuffles; k++)
+			for (int k = 0; k < nNetworksShuffles; k++)
 			{
 				// Shuffle networks inside each age group
 				for (int i = 0; i < groupTrial->nAgents; i++) {
@@ -243,8 +339,10 @@ void Population::evolve(int nSteps)
 			replaceNetworks();
 		}
 
-		replaceModules();
+		replaceMLPs();
+		deleteUnusedMLPs();
 
+		replaceModules();
 		deleteUnusedModules();
 	} 
 }
@@ -299,13 +397,6 @@ void Population::evaluateNetsIndividually(bool log)
 		rankArray(groupFitnesses + i * nSpecimens, groupFitnesses + i * nSpecimens, nSpecimens);
 	}
 
-	for (int l = 0; l < nLayers; l++) {
-		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
-			modules[l][i]->tempFitnessAccumulator = 0.0f;
-			modules[l][i]->nTempFitnessAccumulations = 0;
-		}
-	}
-
 	// update modules and network fitnesses.
 	for (int i = 0; i < nSpecimens; i++)
 	{
@@ -322,14 +413,13 @@ void Population::evaluateNetsIndividually(bool log)
 			networks[i]->nodes[j]->tempFitnessAccumulator += f;
 			networks[i]->nodes[j]->nTempFitnessAccumulations++;
 		}
-	}
-
-	for (int l = 0; l < nLayers; l++) {
-		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
-			Node_G* m = modules[l][i];
-			if (m->nTempFitnessAccumulations == 0) continue;
-			m->tempFitnessAccumulator /= (float)m->nTempFitnessAccumulations;
-			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;
+		if (useInMLP) {
+			networks[i]->inMLP->type->tempFitnessAccumulator += f;
+			networks[i]->inMLP->type->nTempFitnessAccumulations++;
+		}
+		if (useOutMLP) {
+			networks[i]->outMLP->type->tempFitnessAccumulator += f;
+			networks[i]->outMLP->type->nTempFitnessAccumulations++;
 		}
 	}
 }
@@ -435,16 +525,6 @@ void Population::evaluateGroups(bool log)
 		rankArray(groupFitnesses + i * nGroups, groupFitnesses + i * nGroups, nGroups);
 	}
 
-	// Kinda ugly, possibly 100% cache misses. TODO make lifetimeFitness,
-	// tempFitnessAccumulator and nTempFitnessAccumulations into
-	// population owned arrays, adding a field arrayId to Node_G.
-	// And accumulate only if isInModuleArray. (cache miss....)
-	for (int l = 0; l < nLayers; l++) {
-		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
-			modules[l][i]->tempFitnessAccumulator = 0.0f;
-			modules[l][i]->nTempFitnessAccumulations = 0;
-		}
-	}
 
 	// update modules and network fitnesses.
 	for (int i = 0; i < nSpecimens; i++)
@@ -469,16 +549,16 @@ void Population::evaluateGroups(bool log)
 			networks[i]->nodes[j]->tempFitnessAccumulator += f;
 			networks[i]->nodes[j]->nTempFitnessAccumulations++;
 		}
+		if (useInMLP) {
+			networks[i]->inMLP->type->tempFitnessAccumulator += f;
+			networks[i]->inMLP->type->nTempFitnessAccumulations++;
+		}
+		if (useOutMLP) {
+			networks[i]->outMLP->type->tempFitnessAccumulator += f;
+			networks[i]->outMLP->type->nTempFitnessAccumulations++;
+		}
  	}
 
-	for (int l = 0; l < nLayers; l++) {
-		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
-			Node_G* m = modules[l][i];
-			if (m->nTempFitnessAccumulations == 0) continue;
-			m->tempFitnessAccumulator /= (float) m->nTempFitnessAccumulations;
-			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;		
-		}
-	}
 
 	delete[] nets;
 	delete[] outputs;
@@ -500,11 +580,22 @@ void Population::createPhenotype(Network* net)
 		}
 	}
 
-	net->createPhenotype(genotype);
+	MLP_P* inMLP = nullptr;
+	if (useInMLP) {
+		inMLP = new MLP_P(inMLPs[INT_0X(nInMLPs)]);
+	}
+
+	MLP_P* outMLP = nullptr;
+	if (useOutMLP) {
+		outMLP = new MLP_P(outMLPs[INT_0X(nOutMLPs)]);
+	}
+
+	// ownership of the pointers is given to the network.
+	net->createPhenotype(genotype, inMLP, outMLP);
 }
 
 
-Node_G* Population::createChild(PhylogeneticNode* primaryParent, int moduleLayer) {
+Node_G* Population::createModuleChild(PhylogeneticNode* primaryParent, int moduleLayer) {
 
 	if (maxNParents == 1) {
 		return new Node_G(modules[moduleLayer][primaryParent->modulePosition]);
@@ -579,13 +670,266 @@ Node_G* Population::createChild(PhylogeneticNode* primaryParent, int moduleLayer
 }
 
 
+MLP_G* Population::createMLPChild(PhylogeneticNode* primaryParent, bool inOrOut)
+{
+	MLP_G** MLPs = inOrOut ? inMLPs : outMLPs;
+
+	if (maxNParents == 1) {
+		return new MLP_G(MLPs[primaryParent->modulePosition]);
+	}
+
+	std::vector<int> parents;
+	parents.push_back(primaryParent->modulePosition);
+
+	std::vector<float> rawWeights;
+	rawWeights.resize(maxNParents);
+
+	// fill parents, and weights are initialized with a function of the phylogenetic distance.
+	{
+		bool listFilled = false;
+
+		auto distanceValue = [](float d)
+		{
+			return powf(1.0f + d, -0.6f);
+		};
+
+		rawWeights[0] = 1.0f; // = distanceValue(0)
+
+		for (int depth = consanguinityDistance; depth < MAX_PHYLOGENETIC_DEPTH; depth++) {
+
+			float w = distanceValue((float)depth);
+			std::fill(rawWeights.begin() + (int)parents.size(), rawWeights.end(), w);
+
+			primaryParent->fillList(parents, 0, depth, nullptr, maxNParents);
+
+			// parents.size() == nParents can happen if there were exactly as many parents 
+			// as there was room left in the array. This does not set listFilled = true.
+			if (listFilled || parents.size() == maxNParents) break;
+		}
+	}
+
+	if (parents.size() == 1) { // There were no close enough relatives.
+		return new MLP_G(MLPs[primaryParent->modulePosition]);
+	}
+
+	float f0 = MLPs[primaryParent->modulePosition]->lifetimeFitness;
+
+	std::vector<MLP_G*> parentNodes;
+
+#ifdef  SPARSE_MUTATION_AND_COMBINATIONS
+	parentNodes.push_back(MLPs[parents[0]]);
+	for (int i = 1; i < parents.size(); i++) {
+		if (MLPs[parents[i]]->lifetimeFitness > f0) {
+			parentNodes.push_back(MLPs[parents[i]]);
+		}
+	}
+	if (parentNodes.size() == 1) { // There were no close enough relatives with a better fitness
+		return new MLP_G(MLPs[primaryParent->modulePosition]);
+	}
+#else
+
+	parentNetworks.resize(parents.size());
+	for (int i = 0; i < parents.size(); i++) {
+		parentNetworks[i] = networks[parents[i]];
+	}
+
+	// weights are an increasing function of the relative fitness.
+	{
+		rawWeights[0] = 1.0f;
+		for (int i = 1; i < parents.size(); i++) {
+			rawWeights[i] *= (fitnesses[parents[i]] - f0); // TODO  adapt to MoEv
+		}
+	}
+#endif
+
+
+	return MLP_G::combine(parentNodes.data(), rawWeights.data(), (int)parentNodes.size());
+}
+
+
+void Population::replaceMLPs()
+{
+
+	if (useInMLP) {
+
+		for (int i = 0; i < nInMLPs; i++) {
+			MLP_G* m = inMLPs[i];
+			if (m->nTempFitnessAccumulations == 0) continue;
+			m->tempFitnessAccumulator /= (float)m->nTempFitnessAccumulations;
+			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;
+		}
+
+		// Compute roulette probabilities.
+		{
+			float invProbaSum = 0.0f;
+
+			for (int i = 0; i < nInMLPs; i++) {
+				float pRaw = inMLPs[i]->lifetimeFitness - 0.0f;
+
+				// TODO either this or a (uniform ?) probability over the X best
+				// percentile. But that is yet another parameter.
+				if (pRaw > 0) probabilities[i] = pRaw;
+
+
+				else probabilities[i] = 0.0f;
+
+				invProbaSum += probabilities[i];
+			}
+
+			invProbaSum = 1.0f / invProbaSum;
+
+			probabilities[0] = probabilities[0] * invProbaSum;
+			for (int i = 1; i < nInMLPs; i++) {
+				probabilities[i] = probabilities[i - 1] + probabilities[i] * invProbaSum;
+			}
+		}
+
+		int nReplacements = 0;
+
+		for (int i = 0; i < nInMLPs; i++) {
+			if (inMLPs[i]->lifetimeFitness < currentInMLPReplacementTreshold)
+			{
+				inMLPs[i]->isStillEvolved = false;
+				toBeDestroyedInMLPs.push_back(inMLPs[i]);
+
+				inMLPphylogeneticTree[i]->onModuleDestroyed();
+
+				int parentID = binarySearch(probabilities.get(), UNIFORM_01, nInMLPs);
+
+				inMLPs[i] = createMLPChild(inMLPphylogeneticTree[parentID], true);
+				inMLPs[i]->mutate(inMLPmutationProbability);
+				inMLPs[i]->isStillEvolved = true;
+
+				inMLPphylogeneticTree[i] = new PhylogeneticNode(inMLPphylogeneticTree[parentID], i);
+
+				nReplacements++;
+			}
+		}
+
+		if ((float)nReplacements / (float)nInMLPs > inMLPReplacedFraction)
+		{
+			currentInMLPReplacementTreshold = std::max(-10.0f, currentInMLPReplacementTreshold / .8f);
+		}
+		else {
+			currentInMLPReplacementTreshold = std::min(-.03f, currentInMLPReplacementTreshold * .8f);
+		}
+	}
+
+
+	if (useOutMLP) {
+
+		for (int i = 0; i < nOutMLPs; i++) {
+			MLP_G* m = outMLPs[i];
+			if (m->nTempFitnessAccumulations == 0) continue;
+			m->tempFitnessAccumulator /= (float)m->nTempFitnessAccumulations;
+			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;
+		}
+
+		// Compute roulette probabilities.
+		{ 
+			float invProbaSum = 0.0f;
+
+			for (int i = 0; i < nOutMLPs; i++) {
+				float pRaw = outMLPs[i]->lifetimeFitness - 0.0f;
+
+				// TODO either this or a (uniform ?) probability over the X best
+				// percentile. But that is yet another parameter.
+				if (pRaw > 0) probabilities[i] = pRaw;
+
+
+				else probabilities[i] = 0.0f;
+
+				invProbaSum += probabilities[i];
+			}
+
+			invProbaSum = 1.0f / invProbaSum;
+
+			probabilities[0] = probabilities[0] * invProbaSum;
+			for (int i = 1; i < nOutMLPs; i++) {
+				probabilities[i] = probabilities[i - 1] + probabilities[i] * invProbaSum;
+			}
+		}
+
+		int nReplacements = 0;
+
+		for (int i = 0; i < nOutMLPs; i++) {
+			if (outMLPs[i]->lifetimeFitness < currentOutMLPReplacementTreshold)
+			{
+				outMLPs[i]->isStillEvolved = false;
+				toBeDestroyedOutMLPs.push_back(outMLPs[i]);
+
+				outMLPphylogeneticTree[i]->onModuleDestroyed();
+
+				int parentID = binarySearch(probabilities.get(), UNIFORM_01, nOutMLPs);
+
+				outMLPs[i] = createMLPChild(outMLPphylogeneticTree[parentID], false);
+				outMLPs[i]->mutate(outMLPmutationProbability);
+				outMLPs[i]->isStillEvolved = true;
+
+				outMLPphylogeneticTree[i] = new PhylogeneticNode(outMLPphylogeneticTree[parentID], i);
+
+				nReplacements++;
+			}
+		}
+
+		if ((float)nReplacements / (float)nOutMLPs > outMLPReplacedFraction)
+		{
+			currentOutMLPReplacementTreshold = std::max(-10.0f, currentOutMLPReplacementTreshold / .8f);
+		}
+		else {
+			currentOutMLPReplacementTreshold = std::min(-.03f, currentOutMLPReplacementTreshold * .8f);
+		}
+	}
+}
+
+
+void Population::deleteUnusedMLPs()
+{
+
+	if (useInMLP)
+	{
+		for (int i = 0; i < toBeDestroyedInMLPs.size(); i++) {
+			if (toBeDestroyedInMLPs[i]->nUsesInNetworks == 0) {
+				delete toBeDestroyedInMLPs[i];
+
+				// For cleaning in the following line.
+				toBeDestroyedInMLPs[i] = nullptr;
+			}
+		}
+		auto eraseUnused = [](MLP_G* n) {
+			return n == nullptr;
+		};
+
+		std::erase_if(toBeDestroyedInMLPs, eraseUnused);
+	}
+
+
+	if (useOutMLP)
+	{
+		for (int i = 0; i < toBeDestroyedOutMLPs.size(); i++) {
+			if (toBeDestroyedOutMLPs[i]->nUsesInNetworks == 0) {
+				delete toBeDestroyedOutMLPs[i];
+
+				// For cleaning in the following line.
+				toBeDestroyedOutMLPs[i] = nullptr;
+			}
+		}
+		auto eraseUnused = [](MLP_G* n) {
+			return n == nullptr;
+		};
+
+		std::erase_if(toBeDestroyedOutMLPs, eraseUnused);
+	}
+}
+
+
 void Population::deleteUnusedModules()
 {
 	for (int i = 0; i < toBeDestroyedModules.size(); i++) {
 		if (toBeDestroyedModules[i]->nUsesInNetworks == 0) {
 			delete toBeDestroyedModules[i];
 
-			// there may be cases where delete does not already do it :
+			// For cleaning in the following line.
 			toBeDestroyedModules[i] = nullptr; 
 		}
 	}
@@ -635,13 +979,26 @@ void Population::replaceModules() {
 
 	for (int l = 0; l < nLayers; l++) {
 
+		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
+			Node_G* m = modules[l][i];
+			if (m->nTempFitnessAccumulations == 0) continue;
+			m->tempFitnessAccumulator /= (float)m->nTempFitnessAccumulations;
+			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;
+		}
+		
+
 		// Compute roulette probabilities.
 		{
 			float invProbaSum = 0.0f;
 
 			for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
 				float pRaw = modules[l][i]->lifetimeFitness - 0.0f;
-				if (pRaw > 0) probabilities[i] = pRaw;
+
+				// TODO either this or a (uniform ?) probability over the X best
+				// percentile. But that is yet another parameter.
+				if (pRaw > 0) probabilities[i] = pRaw; 
+
+
 				else probabilities[i] = 0.0f;
 
 				invProbaSum += probabilities[i];
@@ -660,16 +1017,16 @@ void Population::replaceModules() {
 		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
 			if (modules[l][i]->lifetimeFitness < currentModuleReplacementTreshold[l]) 
 			{
-				modules[l][i]->isInModuleArray = false;
+				modules[l][i]->isStillEvolved = false;
 				toBeDestroyedModules.push_back(modules[l][i]);
 
 				phylogeneticTrees[l][i]->onModuleDestroyed();
 
 				int parentID = binarySearch(probabilities.get(), UNIFORM_01, nEvolvedModulesPerLayer[l]);
 
-				modules[l][i] = createChild(phylogeneticTrees[l][parentID], l);
-				modules[l][i]->mutateFloats(mutationsProbabilitiesPerLayer[l]);
-				modules[l][i]->isInModuleArray = true;
+				modules[l][i] = createModuleChild(phylogeneticTrees[l][parentID], l);
+				modules[l][i]->mutate(mutationsProbabilitiesPerLayer[l]);
+				modules[l][i]->isStillEvolved = true;
 
 				phylogeneticTrees[l][i] = new PhylogeneticNode(phylogeneticTrees[l][parentID], i);
 
