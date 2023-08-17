@@ -4,6 +4,7 @@
 #include "Random.h"
 
 #include <memory>
+#include <iostream>
 #include <vector>
 
 
@@ -46,5 +47,5 @@ struct MLP_G
 	MLP_G(int* ls, int nl);
 	MLP_G(MLP_G* pn);
 
-	~MLP_G() {};
+	~MLP_G() { std::cerr << "MLP_G DESTROYED ! " << std::endl; };
 };

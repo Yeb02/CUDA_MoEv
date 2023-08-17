@@ -114,9 +114,7 @@ void Network::step(float* input) {
 		std::copy(input, input + inS[0], topNodeP->inputArray);
 	}
 	
-
 	topNodeP->forward();
-
 
 	if (outMLP.get() != nullptr)
 	{

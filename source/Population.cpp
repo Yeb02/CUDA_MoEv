@@ -358,6 +358,9 @@ void Population::evaluateNetsIndividually(bool log)
 		{
 			networks[i]->preTrialReset();
 			groupTrial->innerTrial->reset(false);
+			if (networks[i]->outMLP->type->nLayers != 2) {
+				__debugbreak(); // TODO remove (track first why type is incorrect / dealocated. (yet sizes is correct))
+			}
 			while (!groupTrial->innerTrial->isTrialOver)
 			{
 				networks[i]->step(groupTrial->innerTrial->observations.data());

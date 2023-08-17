@@ -115,7 +115,7 @@ int main()
     PopulationEvolutionParameters params;
 
     params.nSpecimens = 128;
-    params.nTrialsPerGroup = 2;
+    params.nTrialsPerGroup = 4;
     params.maxNParents = 10;
     params.nLayers = nLayers;
     params.inSizes = inSizes;
@@ -130,7 +130,7 @@ int main()
     params.consanguinityDistance = 3;  // MUST BE >= 1
 
     params.useInMLP = false;  // If false, all parameters regarding in  MLPs have no incidence
-    params.useOutMLP = false; // If false, all parameters regarding out MLPs have no incidence
+    params.useOutMLP = true; // If false, all parameters regarding out MLPs have no incidence
     params.inputMLPnLayers = inputMLPnLayers;  
     params.outputMLPnLayers = outputMLPnLayers;  
     params.inMLPReplacedFraction = .3f; // must be in [0,.5]

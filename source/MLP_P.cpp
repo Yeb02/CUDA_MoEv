@@ -35,7 +35,10 @@ float MLP_P::forward(float* input, float* target, bool accGrad)
 {
 
 	float* prevActs = &activations[0];
+
 	std::copy(input, input + type->sizes[0], prevActs);
+
+
 	float* currActs = &activations[type->sizes[0]];
 	for (int i = 0; i < type->nLayers; i++) {
 		for (int j = 0; j < type->sizes[i + 1]; j++) {
