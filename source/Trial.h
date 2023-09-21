@@ -249,7 +249,7 @@ public:
 	void copy(Trial* t) override;
 	Trial* clone() override;
 	void outerLoopUpdate(void* data) override {};
-
+	
 	// or 30000... Gym's baseline is either 200 or 500, which is quite short with tau=0.02.
 	static const int STEP_LIMIT = 1000; 
 
@@ -257,6 +257,8 @@ private:
 	bool continuousControl;
 	float x, xDot, theta, thetaDot;
 	float x0, xDot0, theta0, thetaDot0;
+
+	void setObservations();
 };
 
 

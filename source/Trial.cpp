@@ -105,6 +105,15 @@ CartPoleTrial::CartPoleTrial(bool continuousControl) :
 	reset();
 }
 
+void CartPoleTrial::setObservations() 
+{
+	observations[0] = x/2.5f;
+	observations[1] = xDot;
+	observations[2] = theta/.21f;
+	observations[3] = thetaDot;
+}
+
+
 void CartPoleTrial::reset(bool sameSeed) {
 	score = 0.0f;
 	isTrialOver = false;
@@ -122,11 +131,8 @@ void CartPoleTrial::reset(bool sameSeed) {
 	xDot = xDot0;
 	theta = theta0;
 	thetaDot = thetaDot0;
-
-	observations[0] = x;
-	observations[1] = xDot;
-	observations[2] = theta;
-	observations[3] = thetaDot;
+	
+	setObservations();
 }
 
 void CartPoleTrial::step(const float* actions) {
@@ -183,10 +189,7 @@ void CartPoleTrial::step(const float* actions) {
 	theta = theta + tau * thetaDot;
 	thetaDot = thetaDot + tau * thetaacc;
 
-	observations[0] = x;
-	observations[1] = xDot;
-	observations[2] = theta;
-	observations[3] = thetaDot;
+	setObservations();
 
 }
 

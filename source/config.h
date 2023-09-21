@@ -46,7 +46,7 @@
 
 
 // étayage élagage dans mes notes (étoffage élagage dans les plus anciennes)
-#define SPRAWL_PRUNE
+//#define SPRAWL_PRUNE
 
 #ifndef SPRAWL_PRUNE
 #define ABCD_ETA // Do not comment this line. one and ony one of SPRAWL_PRUNE and ABCD_ETA must be active 
@@ -54,7 +54,7 @@
 
 // When defined, presynaptic activities of complexNodes (topNode excepted) are a decaying sum of past inputs. This
 // sums decays with time and also as a function of the magnitude of the postsynaptic activation.
-#define STDP
+//#define STDP
 
 
 //******************* END OF PARAMETERS CHOICES ***************//

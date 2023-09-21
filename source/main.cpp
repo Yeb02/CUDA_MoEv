@@ -14,6 +14,7 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 
 #include "Population.h"
 #include "Random.h"
+#include "MNIST.h"
 
 #include <iostream>
 
@@ -92,7 +93,8 @@ int main()
     int inputMLPsizes[inputMLPnLayers+1] = { trialObservationsSize, 5, inputInterfaceSize };
     int outputMLPsizes[outputMLPnLayers+1] = { outputInterfaceSize, 3, trialActionsSize };
 
-    /* 
+    
+    /*
     // A structurally non trivial example for debugging
     const int nLayers = 3;
     int inSizes[nLayers] = { inputInterfaceSize, 8, 4};
@@ -100,6 +102,7 @@ int main()
     int nChildrenPerLayer[nLayers] = {2, 1, 0};
     int nEvolvedModulesPerLayer[nLayers] = {64, 128, 128};
     float moduleReplacedFractions[nLayers] = {.3f, .3f, .3f};
+    float moduleElitePercentile[nLayers] = {.1f, .1f, .1f};
     */
 
     const int nLayers = 1;
@@ -108,6 +111,7 @@ int main()
     int nChildrenPerLayer[nLayers] = { 0 }; // Must end with 0
     int nEvolvedModulesPerLayer[nLayers] = { 64 };
     float moduleReplacedFractions[nLayers] = { .3f }; // must be in [0,.5]
+    float moduleElitePercentile[nLayers] = { .1f};
 
 
     InternalConnexion_G::decayParametersInitialValue = .3f;
@@ -123,18 +127,21 @@ int main()
     params.nChildrenPerLayer = nChildrenPerLayer;
     params.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
     params.moduleReplacedFractions = moduleReplacedFractions; 
+    params.moduleElitePercentile = moduleElitePercentile;
     params.networkReplacedFraction = .2f; //in [0,.5]
     params.voteValue = .3f; // > 0
-    params.accumulatedFitnessDecay = .9f; //in [0,1]
+    params.accumulatedFitnessDecay = .7f; //in [0,1]
     params.baseMutationProbability = 1.0f;//in [0,1]
     params.consanguinityDistance = 3;  // MUST BE >= 1
 
-    params.useInMLP = false;  // If false, all parameters regarding in  MLPs have no incidence
-    params.useOutMLP = true; // If false, all parameters regarding out MLPs have no incidence
+    params.useInMLP = true;  // If false, all parameters regarding in  MLPs have no incidence
+    params.useOutMLP = false; // If false, all parameters regarding out MLPs have no incidence
     params.inputMLPnLayers = inputMLPnLayers;  
     params.outputMLPnLayers = outputMLPnLayers;  
-    params.inMLPReplacedFraction = .3f; // must be in [0,.5]
+    params.inMLPReplacedFraction = .3f; // must be in [0,.5] 
     params.outMLPReplacedFraction = .3f;// must be in [0,.5]
+    params.inMLPElitePercentile = .1f;// must be in [0,.5]
+    params.outMLPElitePercentile = .1f;// must be in [0,.5]
     params.inputMLPsizes = inputMLPsizes;  
     params.outputMLPsizes = outputMLPsizes;  
     params.nInMLPs = 64;
@@ -143,7 +150,7 @@ int main()
 
     int nSteps = 10000;
 
-    
+
     Population population(&groupTrial, params);
 
     population.evolve(nSteps);

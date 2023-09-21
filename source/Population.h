@@ -6,6 +6,7 @@
 
 #include "Network.h"
 #include "Trial.h"
+#include "NoveltyEncoder.h"
 #include "Random.h"
 
 
@@ -43,6 +44,10 @@ struct PopulationEvolutionParameters {
 	// layer by layer target fraction of the modules that is replaced at the end of a module cycle.
 	float* moduleReplacedFractions;
 
+
+	// layer by layer fraction of the population of modules that are used as parents.
+	float* moduleElitePercentile;
+
 	// target fraction of the networks that is replaced at the end of a network cycle.
 	float networkReplacedFraction;
 
@@ -70,6 +75,9 @@ struct PopulationEvolutionParameters {
 
 	// layer by layer target fraction of the MLPs that is replaced at the end of a module cycle.
 	float inMLPReplacedFraction, outMLPReplacedFraction;
+
+	// fraction of the population of MLPs that are used as parents.
+	float inMLPElitePercentile, outMLPElitePercentile;
 
 	// the layer sizes of the MLPs
 	int* inputMLPsizes, *outputMLPsizes;
@@ -234,6 +242,7 @@ public:
 		this->outSizes = params.outSizes;
 		this->nChildrenPerLayer = params.nChildrenPerLayer;
 		this->nEvolvedModulesPerLayer = params.nEvolvedModulesPerLayer;
+		this->moduleElitePercentile = params.moduleElitePercentile; 
 		this->moduleReplacedFractions = params.moduleReplacedFractions;
 		this->networkReplacedFraction = params.networkReplacedFraction;
 		this->voteValue = params.voteValue;
@@ -244,7 +253,9 @@ public:
 		this->useInMLP = params.useInMLP;
 		this->useOutMLP = params.useOutMLP;
 		this->inMLPnLayers = params.inputMLPnLayers;
-		this->outMLPnLayers = params.outputMLPnLayers;
+		this->outMLPnLayers = params.outputMLPnLayers;	
+		this->inMLPElitePercentile = params.inMLPElitePercentile;
+		this->outMLPElitePercentile = params.outMLPElitePercentile;
 		this->inMLPReplacedFraction = params.inMLPReplacedFraction;
 		this->outMLPReplacedFraction = params.outMLPReplacedFraction; 
 		this->inMLPsizes = params.inputMLPsizes;
@@ -259,6 +270,8 @@ public:
 
 private:
 	GroupTrial* groupTrial;
+
+	std::unique_ptr<NoveltyEncoder> noveltyEncoder;
 
 	// the fitness per group per trial. (1 line = 1 trial)
 	float* groupFitnesses;
@@ -381,6 +394,7 @@ private:
 	int* outSizes;
 	int* nChildrenPerLayer;
 	int* nEvolvedModulesPerLayer;
+	float* moduleElitePercentile;
 	float* moduleReplacedFractions;
 	float networkReplacedFraction;
 	float voteValue; 
@@ -390,6 +404,7 @@ private:
 	bool useInMLP, useOutMLP; 
 	int inMLPnLayers, outMLPnLayers;
 	float inMLPReplacedFraction, outMLPReplacedFraction;
+	float inMLPElitePercentile, outMLPElitePercentile;
 	int* inMLPsizes, * outMLPsizes;
 	int nInMLPs, nOutMLPs; 
 };

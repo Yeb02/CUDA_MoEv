@@ -26,7 +26,12 @@ InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* type) : type(type)
 		//matrices[0][i] = normalizator * (float)(i%2);
 		//matrices[0][i] = .2f * (UNIFORM_01 - .5f); // Risi Najarro
 		//matrices[0][i] = NORMAL_01 * normalizator;
+
+#ifdef ABCD_ETA
 		matrices[0][i] = type->matricesR[3][i] + NORMAL_01 * normalizator; // lazy solution. Does not scale.
+#else
+		matrices[0][i] = NORMAL_01 * normalizator;
+#endif
 	}
 	// zeroE(); not necessary, because Node_P::preTrialReset() should be called before any computation. 
 }

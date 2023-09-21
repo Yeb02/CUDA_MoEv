@@ -70,6 +70,7 @@ Population::Population(GroupTrial* trial, PopulationEvolutionParameters& params)
 
 	nGroups = nSpecimens / groupTrial->nAgents;
 
+	noveltyEncoder = std::make_unique<NoveltyEncoder>(groupTrial->netInSize);
 	
 	fittestSpecimen = 0;
 
@@ -298,7 +299,7 @@ void Population::evolve(int nSteps)
 	const int nNetworksShuffles = 3;
 
 	// how many selection steps there are for networks between two module selections
-	const int nNetworksCyclesPerModuleCycle = 3;
+	const int nNetworksCyclesPerModuleCycle = 2;
 
 
 	for (int i = 0; i < nSteps; i++) 
@@ -358,9 +359,9 @@ void Population::evaluateNetsIndividually(bool log)
 		{
 			networks[i]->preTrialReset();
 			groupTrial->innerTrial->reset(false);
-			if (networks[i]->outMLP->type->nLayers != 2) {
-				__debugbreak(); // TODO remove (track first why type is incorrect / dealocated. (yet sizes is correct))
-			}
+			//if (networks[i]->outMLP->type->nLayers != 2) {
+			//	__debugbreak(); // TODO remove (track first why type is incorrect / dealocated. (yet sizes is correct))
+			//}
 			while (!groupTrial->innerTrial->isTrialOver)
 			{
 				networks[i]->step(groupTrial->innerTrial->observations.data());
@@ -585,12 +586,16 @@ void Population::createPhenotype(Network* net)
 
 	MLP_P* inMLP = nullptr;
 	if (useInMLP) {
-		inMLP = new MLP_P(inMLPs[INT_0X(nInMLPs)]);
+		int i = INT_0X(nInMLPs);
+		inMLPs[i]->nUsesInNetworks++;
+		inMLP = new MLP_P(inMLPs[i]);
 	}
 
 	MLP_P* outMLP = nullptr;
 	if (useOutMLP) {
-		outMLP = new MLP_P(outMLPs[INT_0X(nOutMLPs)]);
+		int i = INT_0X(nOutMLPs);
+		outMLPs[i]->nUsesInNetworks++;
+		outMLP = new MLP_P(outMLPs[i]);
 	}
 
 	// ownership of the pointers is given to the network.
@@ -762,33 +767,20 @@ void Population::replaceMLPs()
 			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;
 		}
 
-		// Compute roulette probabilities.
-		{
-			float invProbaSum = 0.0f;
-
-			for (int i = 0; i < nInMLPs; i++) {
-				float pRaw = inMLPs[i]->lifetimeFitness - 0.0f;
-
-				// TODO either this or a (uniform ?) probability over the X best
-				// percentile. But that is yet another parameter.
-				if (pRaw > 0) probabilities[i] = pRaw;
-
-
-				else probabilities[i] = 0.0f;
-
-				invProbaSum += probabilities[i];
-			}
-
-			invProbaSum = 1.0f / invProbaSum;
-
-			probabilities[0] = probabilities[0] * invProbaSum;
-			for (int i = 1; i < nInMLPs; i++) {
-				probabilities[i] = probabilities[i - 1] + probabilities[i] * invProbaSum;
-			}
+		
+		std::vector<int> positions(nInMLPs);
+		for (int i = 0; i < nInMLPs; i++) {
+			positions[i] = i;
 		}
+		// sort positions by descending lifetime fitness.
+		std::sort(positions.begin(), positions.end(), [&](int a, int b) -> bool
+			{
+				return inMLPs[a]->lifetimeFitness > inMLPs[b]->lifetimeFitness;
+			}
+		);
 
 		int nReplacements = 0;
-
+		int eliteRange = (int)((float)nInMLPs * inMLPElitePercentile);
 		for (int i = 0; i < nInMLPs; i++) {
 			if (inMLPs[i]->lifetimeFitness < currentInMLPReplacementTreshold)
 			{
@@ -797,7 +789,7 @@ void Population::replaceMLPs()
 
 				inMLPphylogeneticTree[i]->onModuleDestroyed();
 
-				int parentID = binarySearch(probabilities.get(), UNIFORM_01, nInMLPs);
+				int parentID = positions[INT_0X(eliteRange)];
 
 				inMLPs[i] = createMLPChild(inMLPphylogeneticTree[parentID], true);
 				inMLPs[i]->mutate(inMLPmutationProbability);
@@ -828,33 +820,19 @@ void Population::replaceMLPs()
 			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;
 		}
 
-		// Compute roulette probabilities.
-		{ 
-			float invProbaSum = 0.0f;
-
-			for (int i = 0; i < nOutMLPs; i++) {
-				float pRaw = outMLPs[i]->lifetimeFitness - 0.0f;
-
-				// TODO either this or a (uniform ?) probability over the X best
-				// percentile. But that is yet another parameter.
-				if (pRaw > 0) probabilities[i] = pRaw;
-
-
-				else probabilities[i] = 0.0f;
-
-				invProbaSum += probabilities[i];
-			}
-
-			invProbaSum = 1.0f / invProbaSum;
-
-			probabilities[0] = probabilities[0] * invProbaSum;
-			for (int i = 1; i < nOutMLPs; i++) {
-				probabilities[i] = probabilities[i - 1] + probabilities[i] * invProbaSum;
-			}
+		std::vector<int> positions(nOutMLPs);
+		for (int i = 0; i < nOutMLPs; i++) {
+			positions[i] = i;
 		}
+		// sort positions by descending lifetime fitness.
+		std::sort(positions.begin(), positions.end(), [&](int a, int b) -> bool
+			{
+				return outMLPs[a]->lifetimeFitness > outMLPs[b]->lifetimeFitness;
+			}
+		);
 
 		int nReplacements = 0;
-
+		int eliteRange = (int)((float)nOutMLPs * outMLPElitePercentile);
 		for (int i = 0; i < nOutMLPs; i++) {
 			if (outMLPs[i]->lifetimeFitness < currentOutMLPReplacementTreshold)
 			{
@@ -863,7 +841,7 @@ void Population::replaceMLPs()
 
 				outMLPphylogeneticTree[i]->onModuleDestroyed();
 
-				int parentID = binarySearch(probabilities.get(), UNIFORM_01, nOutMLPs);
+				int parentID = positions[INT_0X(eliteRange)];
 
 				outMLPs[i] = createMLPChild(outMLPphylogeneticTree[parentID], false);
 				outMLPs[i]->mutate(outMLPmutationProbability);
@@ -959,6 +937,14 @@ void Population::replaceNetworks()
 			}
 		}
 
+		if (useInMLP) {
+			networks[i]->inMLP->type->nUsesInNetworks--;
+		}
+
+		if (useOutMLP) {
+			networks[i]->outMLP->type->nUsesInNetworks--;
+		}
+
 		delete networks[i];
 
 		networks[i] = new Network(nTrialsPerGroup);
@@ -990,33 +976,19 @@ void Population::replaceModules() {
 		}
 		
 
-		// Compute roulette probabilities.
-		{
-			float invProbaSum = 0.0f;
-
-			for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
-				float pRaw = modules[l][i]->lifetimeFitness - 0.0f;
-
-				// TODO either this or a (uniform ?) probability over the X best
-				// percentile. But that is yet another parameter.
-				if (pRaw > 0) probabilities[i] = pRaw; 
-
-
-				else probabilities[i] = 0.0f;
-
-				invProbaSum += probabilities[i];
-			}
-
-			invProbaSum = 1.0f / invProbaSum;
-
-			probabilities[0] = probabilities[0] * invProbaSum;
-			for (int i = 1; i < nEvolvedModulesPerLayer[l]; i++) {
-				probabilities[i] = probabilities[i - 1] + probabilities[i] * invProbaSum;
-			}
+		std::vector<int> positions(nEvolvedModulesPerLayer[l]);
+		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
+			positions[i] = i;
 		}
+		// sort positions by descending lifetime fitness.
+		std::sort(positions.begin(), positions.end(), [&](int a, int b) -> bool
+			{
+				return modules[l][a]->lifetimeFitness > modules[l][b]->lifetimeFitness;
+			}
+		);
 
 		int nReplacements = 0;
-
+		int eliteRange = (int)((float)nEvolvedModulesPerLayer[l] * moduleElitePercentile[l]);
 		for (int i = 0; i < nEvolvedModulesPerLayer[l]; i++) {
 			if (modules[l][i]->lifetimeFitness < currentModuleReplacementTreshold[l]) 
 			{
@@ -1025,7 +997,7 @@ void Population::replaceModules() {
 
 				phylogeneticTrees[l][i]->onModuleDestroyed();
 
-				int parentID = binarySearch(probabilities.get(), UNIFORM_01, nEvolvedModulesPerLayer[l]);
+				int parentID = positions[INT_0X(eliteRange)];
 
 				modules[l][i] = createModuleChild(phylogeneticTrees[l][parentID], l);
 				modules[l][i]->mutate(mutationsProbabilitiesPerLayer[l]);

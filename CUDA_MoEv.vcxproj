@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -13,6 +13,8 @@
   <ItemGroup>
     <ClInclude Include="source\MLP_G.h" />
     <ClInclude Include="source\MLP_P.h" />
+    <ClInclude Include="source\MNIST.h" />
+    <ClInclude Include="source\NoveltyEncoder.h" />
     <ClInclude Include="source\Node_G.h" />
     <ClInclude Include="source\Node_P.h" />
     <ClInclude Include="source\config.h" />
@@ -27,6 +29,7 @@
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\MLP_G.cpp" />
     <ClCompile Include="source\MLP_P.cpp" />
+    <ClCompile Include="source\MNIST.cpp" />
     <ClCompile Include="source\Node_G.cpp" />
     <ClCompile Include="source\Node_P.cpp" />
     <ClCompile Include="source\InternalConnexion_G.cpp" />
@@ -47,7 +50,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
-    <EnableASAN>true</EnableASAN>
+    <EnableASAN>false</EnableASAN>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -70,6 +73,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <ReferencePath>$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_DEBUG_cu1_18\libtorch\lib;$(ReferencePath)</ReferencePath>
+    <IncludePath>$(ProjectDir)..\CPP_LIBS;$(ProjectDir)source;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ReferencePath>$(VC_ReferencesPath_x64);$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_RELEASE_cu1_18\libtorch\lib;</ReferencePath>
+    <IncludePath>$(ProjectDir)..\CPP_LIBS;$(ProjectDir)source;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -77,11 +86,13 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_DEBUG_cu1_18\libtorch\include;$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_DEBUG_cu1_18\libtorch\include\torch\csrc\api\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;RocketSim.lib;torch.lib;torch_cuda.lib;caffe2_nvrtc.lib;c10.lib;c10_cuda.lib;torch_cpu.lib;%(AdditionalDependencies);</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_DEBUG_cu1_18\libtorch\lib;$(ProjectDir)..\CPP_LIBS\RocketSim\build\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
@@ -95,13 +106,15 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;WIN64;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_RELEASE_cu1_18\libtorch\include;$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_RELEASE_cu1_18\libtorch\include\torch\csrc\api\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);RocketSim.lib;torch.lib;torch_cuda.lib;caffe2_nvrtc.lib;c10.lib;c10_cuda.lib;torch_cpu.lib;</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_RELEASE_cu1_18\libtorch\lib;$(ProjectDir)..\CPP_LIBS\RocketSim\build\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>

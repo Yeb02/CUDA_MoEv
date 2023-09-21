@@ -47,5 +47,7 @@ struct MLP_G
 	MLP_G(int* ls, int nl);
 	MLP_G(MLP_G* pn);
 
-	~MLP_G() { std::cerr << "MLP_G DESTROYED ! " << std::endl; };
+	~MLP_G() { 
+		//std::cerr << "MLP_G DESTROYED ! " << std::endl; 
+	};
 };
