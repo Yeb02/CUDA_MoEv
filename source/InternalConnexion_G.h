@@ -3,9 +3,6 @@
 #include <memory>
 #include <fstream>
 
-#define WRITE_4B(i, os) os.write(reinterpret_cast<const char*>(&i), 4);
-#define READ_4B(i, is) is.read(reinterpret_cast<char*>(&i), 4);
-
 #include "Random.h"
 #include "config.h"
 

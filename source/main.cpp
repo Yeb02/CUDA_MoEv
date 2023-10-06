@@ -10,25 +10,17 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 
 #endif
 
-
-
-#include "Population.h"
+#include "System.h"
 #include "Random.h"
-#include "MNIST.h"
+//#include "MNIST.h"
 
 #include <iostream>
 
-#include <cuda_runtime.h>
-#include <cublas_v2.h>
-#pragma comment(lib, "cublas.lib") // Not linked by default in the cuda template. 
 
 #ifdef ROCKET_SIM_T
 #include "RocketSim.h"
 #endif
 
-
-#define LOGV(v) for (const auto e : v) {cout << std::setprecision(2)<< e << " ";}; cout << "\n"
-#define LOG(x) cout << x << endl;
 
 using namespace std;
 
@@ -38,67 +30,47 @@ int main()
 {
     LOG("Seed : " << seed);
 
-    cublasHandle_t handle;
-    cublasCreate_v2(&handle);
-
 #ifdef ROCKET_SIM_T
     // Path to where you dumped rocket league collision meshes.
     RocketSim::Init((std::filesystem::path)"C:/Users/alpha/Bureau/RLRL/collisionDumper/x64/Release/collision_meshes");
 #endif
 
-    int channelSize = 2;
-    int nAgentsPerGroup = 3;
+    int nThreads = std::thread::hardware_concurrency();
+    LOG(nThreads << " concurrent threads are supported at hardware level.");
 
-#ifdef NO_GROUP
-    nAgentsPerGroup = 1; // DO NOT EDIT
+    std::vector<Trial*> trials;
+    trials.resize(nThreads);
+
+#ifdef _DEBUG
+    nThreads = 1; // Because multi-threaded functions are difficult debug line by line in VS
 #endif
 
-    Trial* innerTrial;
-
-    // construct innerTrial.
-    {
+    for (int i = 0; i < nThreads; i++) {
 #ifdef CARTPOLE_T
-        innerTrial = new CartPoleTrial(true); // bool : continuous control.
+        trials[i] = new CartPoleTrial(true); // bool : continuous control.
 #elif defined XOR_T
-        innerTrial = new XorTrial(4, 5);  // int : vSize, int : delay
+        trials[i] = new XorTrial(4, 5);  // int : vSize, int : delay
 #elif defined TMAZE_T
-        innerTrial = new TMazeTrial(false);
+        trials[i] = new TMazeTrial(false);
 #elif defined N_LINKS_PENDULUM_T
-        innerTrial = new NLinksPendulumTrial(false, 2);
+        trials[i] = new NLinksPendulumTrial(false, 2);
 #elif defined MEMORY_T
-        innerTrial = new MemoryTrial(2, 5, 5, true); // int nMotifs, int motifSize, int responseSize, bool binary = true
+        trials[i] = new MemoryTrial(2, 5, 5, true); // int nMotifs, int motifSize, int responseSize, bool binary = true
 #elif defined ROCKET_SIM_T
-        innerTrial = new RocketSimTrial();
+        trials[i] = new RocketSimTrial();
 #endif
     }
 
-    GroupTrial groupTrial(innerTrial, nAgentsPerGroup, channelSize);
-
-    int trialObservationsSize = groupTrial.netInSize;
-    int trialActionsSize = groupTrial.netOutSize;    
-#ifdef NO_GROUP 
-    trialObservationsSize = groupTrial.innerTrial->netInSize;   
-    trialActionsSize = groupTrial.innerTrial->netOutSize;       
-#endif
-
-    int inputInterfaceSize = 4;
-    int outputInterfaceSize = 4;
-
-    const int inputMLPnLayers = 2;  // >= 1
-    const int outputMLPnLayers = 2; // >= 1
-
-    if (inputMLPnLayers == 0) inputInterfaceSize = trialObservationsSize;
-    if (outputMLPnLayers == 0) outputInterfaceSize = trialActionsSize;
-
-    int inputMLPsizes[inputMLPnLayers+1] = { trialObservationsSize, 5, inputInterfaceSize };
-    int outputMLPsizes[outputMLPnLayers+1] = { outputInterfaceSize, 3, trialActionsSize };
+ 
+    int trialObservationsSize = trials[0]->netInSize;
+    int trialActionsSize = trials[0]->netOutSize;
 
     
     /*
     // A structurally non trivial example for debugging
     const int nLayers = 3;
-    int inSizes[nLayers] = { inputInterfaceSize, 8, 4};
-    int outSizes[nLayers] = { outputInterfaceSize, 7, 3};
+    int inSizes[nLayers] = { trialObservationsSize, 8, 4};
+    int outSizes[nLayers] = { trialActionsSize, 7, 3};
     int nChildrenPerLayer[nLayers] = {2, 1, 0};
     int nEvolvedModulesPerLayer[nLayers] = {64, 128, 128};
     float moduleReplacedFractions[nLayers] = {.3f, .3f, .3f};
@@ -106,54 +78,52 @@ int main()
     */
 
     const int nLayers = 1;
-    int inSizes[nLayers] = { inputInterfaceSize };
-    int outSizes[nLayers] = { outputInterfaceSize };
+    int inSizes[nLayers] = { trialObservationsSize };
+    int outSizes[nLayers] = { trialActionsSize };
     int nChildrenPerLayer[nLayers] = { 0 }; // Must end with 0
     int nEvolvedModulesPerLayer[nLayers] = { 64 };
     float moduleReplacedFractions[nLayers] = { .3f }; // must be in [0,.5]
     float moduleElitePercentile[nLayers] = { .1f};
 
 
+
     InternalConnexion_G::decayParametersInitialValue = .3f;
 
-    PopulationEvolutionParameters params;
 
-    params.nSpecimens = 128;
-    params.nTrialsPerGroup = 4;
-    params.maxNParents = 10;
-    params.nLayers = nLayers;
-    params.inSizes = inSizes;
-    params.outSizes = outSizes;
-    params.nChildrenPerLayer = nChildrenPerLayer;
-    params.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
-    params.moduleReplacedFractions = moduleReplacedFractions; 
-    params.moduleElitePercentile = moduleElitePercentile;
-    params.networkReplacedFraction = .2f; //in [0,.5]
-    params.voteValue = .3f; // > 0
-    params.accumulatedFitnessDecay = .7f; //in [0,1]
-    params.baseMutationProbability = 1.0f;//in [0,1]
-    params.consanguinityDistance = 3;  // MUST BE >= 1
+    SystemEvolutionParameters sParams;
 
-    params.useInMLP = true;  // If false, all parameters regarding in  MLPs have no incidence
-    params.useOutMLP = false; // If false, all parameters regarding out MLPs have no incidence
-    params.inputMLPnLayers = inputMLPnLayers;  
-    params.outputMLPnLayers = outputMLPnLayers;  
-    params.inMLPReplacedFraction = .3f; // must be in [0,.5] 
-    params.outMLPReplacedFraction = .3f;// must be in [0,.5]
-    params.inMLPElitePercentile = .1f;// must be in [0,.5]
-    params.outMLPElitePercentile = .1f;// must be in [0,.5]
-    params.inputMLPsizes = inputMLPsizes;  
-    params.outputMLPsizes = outputMLPsizes;  
-    params.nInMLPs = 64;
-    params.nOutMLPs = 64;
+    sParams.nAgents = 128;
+    sParams.agentsReplacedFraction = .2f; //in [0,.5]
+    sParams.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
+
+
+    NetworkParameters nParams;
+
+    nParams.nLayers = nLayers;
+    nParams.inSizes = inSizes;
+    nParams.outSizes = outSizes;
+    nParams.nChildrenPerLayer = nChildrenPerLayer;
+
+    // All parameters excepted maxPhylogeneticDepth could be per modulePopulation, but to limit the number of
+    // hyperparameters only nModules is specific to each population (and therefore set by the system).
+    ModulePopulationParameters mpParams;
+
+    //mpParams.nModules = sParams.nEvolvedModulesPerLayer[l]; 
+    mpParams.accumulatedFitnessDecay = .7f; //in [0,1]
+    mpParams.maxNParents = 10;
+    mpParams.maxPhylogeneticDepth = 10;
+    mpParams.moduleReplacedFraction = .3f; // must be in [0,.5]
+    mpParams.moduleElitePercentile = .3f; // must be in [0,.5]
+    mpParams.baseMutationProbability = .5f; // in [0,1]
+    mpParams.consanguinityDistance = 1; // must be >= 1
 
 
     int nSteps = 10000;
 
 
-    Population population(&groupTrial, params);
+    System system(trials.data(), sParams, nParams, nThreads);
 
-    population.evolve(nSteps);
+    system.evolve(nSteps);
 
     return 0;
 }

@@ -1,78 +1,51 @@
 #pragma once
 
 
-#include <cuda_runtime.h>
-#include <cublas_v2.h>
-#include <curand.h>
+//#include <cuda_runtime.h>
+//#include <cublas_v2.h>
+//#include <curand.h>
 
 #include <vector>
 #include <memory>
 #include <cmath>
 #include <fstream>
 
+#include "VirtualClasses.h"
 #include "Random.h"
 #include "Node_P.h"
 #include "Node_G.h"
-#include "MLP_G.h"
-#include "MLP_P.h"
+#include "ModulePopulation.h"
+//#include "MLP_G.h"
+//#include "MLP_P.h"
 
 
 
-class Network {
+struct NetworkParameters 
+{
+	// How deep the networks are
+	int nLayers;
+
+	// layer by layer input sizes of the modules.
+	int* inSizes;
+
+	// layer by layer output sizes of the modules.
+	int* outSizes;
+
+	// layer by layer number of children per module. Is 0 only at nLayers'th position.
+	int* nChildrenPerLayer;
+
+	NetworkParameters() {};
+};
+
+
+class Network : public IAgent {
 	
 public:
-	Network(int nTrialsPerGroup);
+
+	Network(int nModules);
 
 	~Network() {};
-
-	Network(std::ifstream& is);
 	
-	void save(std::ofstream& os);
-
-	// Since getOutput returns a float*, application must either use it before any other call to step(),
-	// destroyPhenotype(), preTrialReset(), ... or Network destruction, either deep copy the
-	// pointee immediatly when getOutput() returns. If unsure, deep copy.
-	float* getOutput();
-
-	void step(float* input);
-
-
-	//**************************		CUDA		*************************//
-
-	void uploadToGPU(int netId);
-	void randomizeH(int netId);
-	void retrieveLearnedParametersFromGPU(int netId);
-
-	static void grouped_step(Network** nets, int nNets);
-	static void grouped_perLayer_Forward(int layer);
-	static void grouped_perDestination_propagateAndLocalUpdate(int destination);
-
-	static float**** mats_CUDA;
-	static float**** vecs_CUDA;
-
-	//***********************************************************************//
-	
-
-	void createPhenotype(Node_G** nodes, MLP_P* inMLP, MLP_P* outMLP);
-	void destroyPhenotype();
-
-	// Sets to 0 the dynamic elements of the phenotype. 
-	void preTrialReset();
-
-	// How many trials the phenotype went through.
-	int nExperiencedTrials;
-
-	float lifetimeFitness;
-
-	// The ID of the group this network is part of.
-	int groupID;
-
-	// Stores the votes on each trial the group experiences. When a new group is formed, these are overwritten.
-	// Used by the population for computing fitnesses.
-	std::unique_ptr<float[]> perTrialVotes;
-
-	// Breadth first traversal of the tree. Used by population for module score calculations.
-	std::unique_ptr<Node_G* []> nodes;
 
 
 	static int destinationArraySize;
@@ -81,11 +54,6 @@ public:
 	static int* outS;
 	static int* nC;
 	static int nLayers;
-
-	std::unique_ptr<MLP_P> inMLP;
-	std::unique_ptr<MLP_P> outMLP;
-
-private:
 
 	std::unique_ptr<Node_P> topNodeP;
 
@@ -104,10 +72,19 @@ private:
 	std::unique_ptr<float[]> destinationArray_preSynAvg;
 #endif
 
-	// How many inferences were performed since last call to preTrialReset by the phenotype.
-	int nInferencesOverTrial;
 
-	// How many inferences were performed since phenotype creation.
-	int nInferencesOverLifetime;
+	Network(std::ifstream& is);
+
+	void save(std::ofstream& os) override;
+
+	float* getOutput() override;
+
+	void step(float* input) override;
+
+	void preTrialReset() override;
+	
+	void createPhenotype(std::vector<ModulePopulation<class Node_G>*>& populations);
+
+	void destroyPhenotype() override;
 
 };

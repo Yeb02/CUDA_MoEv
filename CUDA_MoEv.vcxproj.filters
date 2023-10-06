@@ -27,7 +27,7 @@
     <ClInclude Include="source\Network.h">
       <Filter>headers</Filter>
     </ClInclude>
-    <ClInclude Include="source\Population.h">
+    <ClInclude Include="source\System.h">
       <Filter>headers</Filter>
     </ClInclude>
     <ClInclude Include="source\Random.h">
@@ -36,16 +36,19 @@
     <ClInclude Include="source\Trial.h">
       <Filter>headers</Filter>
     </ClInclude>
-    <ClInclude Include="source\MLP_P.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="source\MLP_G.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="source\NoveltyEncoder.h">
       <Filter>headers</Filter>
     </ClInclude>
     <ClInclude Include="source\MNIST.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\VirtualClasses.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\ModulePopulation.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Macros.h">
       <Filter>headers</Filter>
     </ClInclude>
   </ItemGroup>
@@ -65,7 +68,7 @@
     <ClCompile Include="source\Network.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="source\Population.cpp">
+    <ClCompile Include="source\System.cpp">
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\Random.cpp">
@@ -75,12 +78,6 @@
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\main.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\MLP_G.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\MLP_P.cpp">
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\MNIST.cpp">

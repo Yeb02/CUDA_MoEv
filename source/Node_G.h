@@ -7,6 +7,7 @@
 #include <tuple>
 #include <fstream>
 
+#include "VirtualClasses.h"
 #include "Random.h"
 #include "Config.h"
 #include "InternalConnexion_G.h"
@@ -66,32 +67,35 @@ inline int binarySearch(float* proba, float value, int size) {
 	//throw "Binary search failure !";
 }
 
-struct Node_G {
 
-	Node_G(int* inS, int* outS, int nC);
+struct Node_GFixedParameters : public IModuleFixedParameters
+{
+	int nChildren;
+	int inputSize, outputSize;
 
+	int nCols;
+	int toChildrenNLines;
+
+	Node_GFixedParameters(int* inS, int* outS, int* nC) :
+		nChildren(nC[0]), inputSize(inS[0]), outputSize(outS[0])
+	{
+
+		toChildrenNLines = nC > 0 ? outS[1] * nC[0] : 0;
+		nCols = nC > 0 ? inS[1] * nC[0] + inputSize : inputSize;
+	}
+};
+
+
+class Node_G : public IModule
+{
+public:
 	Node_G(Node_G* n);
 
 	~Node_G() {};
 
-	Node_G(std::ifstream& is);
-	void save(std::ofstream& os);
-
-	// stupid but thats the only way to do complex operations in an initializer list.
-	static int computeNCols(int* inS, int* outS, int nC) {
-		int cIn = nC > 0 ? outS[1] * nC : 0;
-		return inS[0] + cIn;
-	}
 
 	int nChildren;
 	int inputSize, outputSize; // >= 1
-
-	// For external use by the network and population.
-	bool isStillEvolved;
-	float tempFitnessAccumulator;
-	int nTempFitnessAccumulations;
-	float lifetimeFitness;
-	int nUsesInNetworks;
 
 	// Structs containing the constant, evolved, matrix of parameters linking internal nodes.
 	// The name specifies the type of node that takes the result of the matrix operations as inputs.
@@ -99,11 +103,16 @@ struct Node_G {
 	InternalConnexion_G toChildren; // nRows = sum(children.inputSize) 
 	InternalConnexion_G toOutput; // nRows = outputSize
 
-	int getNParameters() {
-		return toChildren.getNParameters() + toOutput.getNParameters();
-	}
-	// Mutate real-valued floating point parameters.
-	void mutate(float adjustedFMutationP);
+
+	int getNParameters() override {return toChildren.getNParameters() + toOutput.getNParameters();}
+
+	Node_G(std::ifstream& is);
+
+	Node_G(Node_GFixedParameters& p);
+
+	void save(std::ofstream& os) override;
+
+	void mutate(float p) override;
 
 	static Node_G* combine(Node_G** parents, float* weights, int nParents);
 };

@@ -1,34 +1,26 @@
 #include "Node_G.h"
 
-Node_G::Node_G(int* inS, int* outS, int nC) :
-	inputSize(inS[0]), outputSize(outS[0]), nChildren(nC),
-	toChildren(nC > 0 ? nC * inS[1] : 0, computeNCols(inS, outS, nC)),
-	toOutput(outS[0], computeNCols(inS, outS, nC))
+Node_G::Node_G(Node_GFixedParameters& p) :
+	IModule(),
+	inputSize(p.inputSize), outputSize(p.outputSize), nChildren(p.nChildren),
+	toChildren(p.toChildrenNLines, p.nCols),
+	toOutput(outputSize, p.nCols)
 {
-	isStillEvolved = false;
-	tempFitnessAccumulator = 0.0f;
-	nTempFitnessAccumulations = 0;
-	lifetimeFitness = 0.0f;
-	nUsesInNetworks = 0;
+	
 };
 
-Node_G::Node_G(Node_G* n) {
-
+Node_G::Node_G(Node_G* n) 
+	: IModule()
+{
 	inputSize = n->inputSize;
 	outputSize = n->outputSize;
 	nChildren = n->nChildren;
 
 	toChildren = n->toChildren;
 	toOutput = n->toOutput;
-
-	isStillEvolved = false;
-	tempFitnessAccumulator = 0.0f;
-	nTempFitnessAccumulations = 0;
-	lifetimeFitness = 0.0f;
-	nUsesInNetworks = 0;
 }
 
-// Sparse version. TODO continuous (GPU enabled ?)
+
 Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 {
 	const int proportionalParentPoolSize = 10 * 10; // TODO  Should be resolution * maxNParents (population's
@@ -102,6 +94,7 @@ Node_G::Node_G(std::ifstream& is) {
 
 	READ_4B(inputSize, is);
 	READ_4B(outputSize, is);
+	READ_4B(nChildren, is);
 	
 	toChildren = InternalConnexion_G(is);
 	toOutput = InternalConnexion_G(is);
@@ -112,6 +105,7 @@ Node_G::Node_G(std::ifstream& is) {
 void Node_G::save(std::ofstream& os) {
 	WRITE_4B(inputSize, os);
 	WRITE_4B(outputSize, os);
+	WRITE_4B(nChildren, os);
 
 	
 	toChildren.save(os);

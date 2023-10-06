@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Macros.h"
 
 ////////////////////////////////////
 ///// USER COMPILATION CHOICES /////
@@ -24,25 +25,11 @@
 // evaluateNetsIndividually() ifdef NO_GROUP), length of networks cycle and modules/MLPs cycles (population.cpp evolve())
 // initial elimination threshold for networks, modules, MLPs (population.cpp population())
 
-// When defined, CPU functions replace CUDA kernels. Used for debugging purposes.
-#define NO_CUDA
-
-// When defined, networks are evaluated individually (the group trial is ignored, only its innerTrial is used.)
-// Used for debugging purposes.
-#define NO_GROUP
-
 
 // Sparse mutations consist in adding a sparse gaussian vector to the network, whose components have
 // significant values. Sparse combination replaces each parameter with one of its parents, sampled uniformly
 // among those having higher fitness.
 #define SPARSE_MUTATION_AND_COMBINATIONS
-
-
-
-// Maximum depth of the phylogenetic tree. This means that all pairs of modules used in a combination cannot be
-// be further away genetically than MAX_PHYLOGENETIC_DEPTH combinations and mutations. 
-// MUST BE >= 1
-#define MAX_PHYLOGENETIC_DEPTH 10
 
 
 // étayage élagage dans mes notes (étoffage élagage dans les plus anciennes)
