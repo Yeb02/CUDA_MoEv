@@ -15,18 +15,12 @@ int Network::nLayers = 0;
 
 
 Network::Network(int nModules)
-	: IAgent()
+	: IAgent(nModules)
 {
-	modules = std::make_unique<IModule*[]>(nModules);
-
-
 	// Quantites created in createdPhenotype:
-
 	topNodeP.reset(NULL);
-
 	inputArray.reset(NULL);
 	destinationArray.reset(NULL);
-
 #ifdef STDP
 	destinationArray_preSynAvg.reset(NULL);
 #endif
@@ -134,10 +128,11 @@ void Network::save(std::ofstream& os)
 }
 
 
-Network::Network(std::ifstream& is)
+Network::Network(std::ifstream& is) :
+	IAgent(is)
 {
-	int version;
-	READ_4B(version, is);
+	/*int version;
+	READ_4B(version, is);*/
 
 	// TODO.
 }

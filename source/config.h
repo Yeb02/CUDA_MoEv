@@ -21,9 +21,8 @@
 //#define ROCKET_SIM_T 
 
 
-// options still in the files : H init (NodeP), trial uses same seed at reset (trial.h ifndef NO_GROUP, population.cpp
-// evaluateNetsIndividually() ifdef NO_GROUP), length of networks cycle and modules/MLPs cycles (population.cpp evolve())
-// initial elimination threshold for networks, modules, MLPs (population.cpp population())
+// options still in the files : H init (NodeP), trial uses same seed at reset (in population.cpp, thread loop),
+// initial elimination threshold for agents and modules (in system and modulePopulation's constructors )
 
 
 // Sparse mutations consist in adding a sparse gaussian vector to the network, whose components have
@@ -46,7 +45,7 @@
 
 //******************* END OF PARAMETERS CHOICES ***************//
 
-// what follows must not be touched, it computes the required memory space for the algorithm.
+// what follows must not be modified, it computes the required memory space for the algorithm.
 // (by computing how many parameters each module requires.)
 
 

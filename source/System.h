@@ -33,6 +33,11 @@ struct SystemEvolutionParameters {
 	// how many calls are made to replaceNetworks before a call to replaceModules
 	int nNetworksCyclesPerModuleCycle;
 
+	// Raw scores can be transformed into a more sensical measure of the fitness of agents.
+	// Either NONE, RANKING or NORMALIZATION. In doubt, use RANKING. NONE only if you know 
+	// what you are doing.
+	SCORE_BATCH_TRANSFORMATION scoreTransformation;
+
 
 
 	// layer by layer number of evolved modules. Not an attribute of the system object
@@ -47,14 +52,8 @@ struct SystemEvolutionParameters {
 class System {
 
 public:	
-	~System() 
-	{
-		stopThreads();
-		for (int i = 0; i < nAgents; i++) {
-			delete agents[i];
-		}
-		delete[] agents;
-	};
+	~System();
+
 
 	void evolve(int nSteps);
 
@@ -71,10 +70,16 @@ public:
 
 		this->nTrialsPerNetworkCycle = params.nTrialsPerNetworkCycle;
 		this->nNetworksCyclesPerModuleCycle = params.nNetworksCyclesPerModuleCycle;
+
+		this->scoreTransformation = params.scoreTransformation;
 	}
 
 	
-	void saveFittestSpecimen();
+	// saves genotype (and phenotype if it exists) of the current best agent.
+	void saveBestAgent();
+
+	// literally. To be used to pause a run, and potentially transfer it to another machine.
+	void saveEverything();
 
 
 	void startThreads();
@@ -84,16 +89,16 @@ public:
 
 
 private:
-	// 1 per thread
+	// 1 per thread. TODO "this" can optionnally store a list of nTrialsPerNetworkCycle trial states
+	// so that all agents are evaluated exactly on the same trials.
 	Trial** trials;
 
 	//std::unique_ptr<NoveltyEncoder> noveltyEncoder;
 
+	// Holds the scores per trial per agent, potentially transformed by a normalization or ranking operation.
+	std::vector<float*> agentsScores;
 
 	std::vector<ModulePopulation<Node_G>*> populations;
-
-	// Layer by layer total number of modules in a network. Computed once as a util.
-	std::vector<int> nModulesPerNetworkLayer;
 
 	IAgent** agents;
 
@@ -109,14 +114,7 @@ private:
 	int fittestSpecimen;
 
 
-
-	void accumulateModuleFitnesses();
-
 	void replaceNetworks();
-
-	void replaceModules();
-
-	void zeroModulesAccumulators();
 
 	
 	// How threading goes here: Each thread is assigned a chunk of the agents array, and a trial.
@@ -129,6 +127,8 @@ private:
 	bool mustTerminate;
 	void perThreadMainLoop(const int threadID);
 
+	// prints out fitness information.
+	void log();
 
 	// EVOLUTION PARAMETERS: 
 	// Set with a SystemEvolutionParameters struct. Description in the struct definition.
@@ -137,4 +137,5 @@ private:
     float accumulatedFitnessDecay; 
 	int nTrialsPerNetworkCycle;
 	int nNetworksCyclesPerModuleCycle;
+	SCORE_BATCH_TRANSFORMATION scoreTransformation;
 };

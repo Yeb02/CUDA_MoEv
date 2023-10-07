@@ -80,8 +80,8 @@ struct Node_GFixedParameters : public IModuleFixedParameters
 		nChildren(nC[0]), inputSize(inS[0]), outputSize(outS[0])
 	{
 
-		toChildrenNLines = nC > 0 ? outS[1] * nC[0] : 0;
-		nCols = nC > 0 ? inS[1] * nC[0] + inputSize : inputSize;
+		toChildrenNLines = nC[0] > 0 ? outS[1] * nC[0] : 0;
+		nCols = nC[0] > 0 ? inS[1] * nC[0] + inputSize : inputSize;
 	}
 };
 

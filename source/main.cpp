@@ -24,7 +24,8 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 
 using namespace std;
 
-
+// The .h in which the struct is defined does not have a .cpp because the main class is a template...
+int PhylogeneticNode::maxPhylogeneticDepth = 0;
 
 int main()
 {
@@ -73,17 +74,13 @@ int main()
     int outSizes[nLayers] = { trialActionsSize, 7, 3};
     int nChildrenPerLayer[nLayers] = {2, 1, 0};
     int nEvolvedModulesPerLayer[nLayers] = {64, 128, 128};
-    float moduleReplacedFractions[nLayers] = {.3f, .3f, .3f};
-    float moduleElitePercentile[nLayers] = {.1f, .1f, .1f};
     */
 
     const int nLayers = 1;
     int inSizes[nLayers] = { trialObservationsSize };
     int outSizes[nLayers] = { trialActionsSize };
     int nChildrenPerLayer[nLayers] = { 0 }; // Must end with 0
-    int nEvolvedModulesPerLayer[nLayers] = { 64 };
-    float moduleReplacedFractions[nLayers] = { .3f }; // must be in [0,.5]
-    float moduleElitePercentile[nLayers] = { .1f};
+    int nEvolvedModulesPerLayer[nLayers] = { 128 };
 
 
 
@@ -95,6 +92,9 @@ int main()
     sParams.nAgents = 128;
     sParams.agentsReplacedFraction = .2f; //in [0,.5]
     sParams.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
+    sParams.nTrialsPerNetworkCycle = 3;
+    sParams.nNetworksCyclesPerModuleCycle = 2;
+    sParams.scoreTransformation = RANK;
 
 
     NetworkParameters nParams;
@@ -109,7 +109,7 @@ int main()
     ModulePopulationParameters mpParams;
 
     //mpParams.nModules = sParams.nEvolvedModulesPerLayer[l]; 
-    mpParams.accumulatedFitnessDecay = .7f; //in [0,1]
+    mpParams.accumulatedFitnessDecay = .8f; //in [0,1]
     mpParams.maxNParents = 10;
     mpParams.maxPhylogeneticDepth = 10;
     mpParams.moduleReplacedFraction = .3f; // must be in [0,.5]
@@ -118,10 +118,10 @@ int main()
     mpParams.consanguinityDistance = 1; // must be >= 1
 
 
-    int nSteps = 10000;
+    int nSteps = 100;
 
 
-    System system(trials.data(), sParams, nParams, nThreads);
+    System system(trials.data(), sParams, nParams, mpParams, nThreads);
 
     system.evolve(nSteps);
 

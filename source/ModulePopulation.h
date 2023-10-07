@@ -10,6 +10,7 @@
 
 struct PhylogeneticNode
 {
+	// initialized in main.cpp before main().
 	static int maxPhylogeneticDepth;
 
 	// The PNode associated with the module that was "this"'s module's primary parent. nullptr if this
@@ -20,11 +21,11 @@ struct PhylogeneticNode
 	// has been deleted or is in the toBeDeleted list.
 	int modulePosition;
 
-	// pointers towards all the children that still exist.
+	// pointers towards all the children that still exist. 
 	std::vector<PhylogeneticNode*> children;
 
-	// if depth >= MAX_MATING_DEPTH, "this" is deleted. depth is the distance to the closest child (indirect)
-	// that is associated with a module that is still in the module array.
+	// if depth >= MAX_MATING_DEPTH, "this" is deleted. depth is the distance to the closest descendant
+	// that is associated with a module that is still in the module array. So 0 if modulePosition != -1 
 	int depth;
 
 	PhylogeneticNode() {};
@@ -33,24 +34,27 @@ struct PhylogeneticNode
 		modulePosition(_modulePosition), parent(parent)
 	{
 		depth = 0;
-		if (parent != nullptr) parent->children.push_back(this);
+
+		// parent is nullptr at startup for the very first generation.
+		if (parent!=nullptr) parent->children.push_back(this);
+
 		// no need to update the parents depth as it is already 0, since only a 
-		// phylogenetic node with an active associated module
+		// phylogenetic node with an active associated module can be a parent.
 	};
 
-	// Does not actually desallocate this, it must be handled outside !
+	// Does not actually deallocate this, it must be handled outside. Deletion happens in
+	// updateDepth(). Parent depth is not updated here because the only place this function 
+	// is called is in updateDepth which already handles it.
 	void destroy()
 	{
 		for (int i = 0; i < children.size(); i++) {
 			children[i]->parent = nullptr;
 		}
 
+		// The following block is equivalent to 
+		// remove(parent->children.begin(), parent->children.end(), this);
+		// but much more efficient.
 		if (parent != nullptr) {
-
-			// The following block is equivalent to 
-			// remove(parent->children.begin(), parent->children.end(), this);
-			// but much more efficient.
-
 			int s = (int)parent->children.size() - 1;
 			for (int i = 0; i < s; i++) {
 				if (parent->children[i] == this) {
@@ -59,41 +63,43 @@ struct PhylogeneticNode
 				}
 			}
 			parent->children.pop_back();
-
-
-
-			parent->updateDepth(-1);
 		}
 	}
 
+	// called when one of the children of this has its depth updated to d0.
+	// (updated means increased, as depth can only increase !)
+	// To be called with d0 = -1 if this's module has just been removed from the 
+	// population and depth was previously 0.
 	void updateDepth(int d0)
 	{
 		if (
-			modulePosition != -1 || // module is alive
-			d0 > depth)            // the child whose depth increased was not one of the shallowest
+			modulePosition != -1 || // this's module is alive, so depth stays at 0
+			d0 > depth-1)           // the child whose depth increased was not one of the shallowest children
 		{
 			return;
 		}
 
 		int d1 = depth + 1;
-		int minD = maxPhylogeneticDepth - 1;
+		int minD = maxPhylogeneticDepth;
 		for (int i = 0; i < children.size(); i++)
 		{
 			if (minD > children[i]->depth) minD = children[i]->depth;
 		}
 		depth = minD + 1;
 
-		if (depth == maxPhylogeneticDepth) {
+		if (depth >= maxPhylogeneticDepth) 
+		{ 
+			if (parent != nullptr) parent->updateDepth(depth);
 			destroy();
 			delete this; // careful.
 			return;
 		}
 
 		// the child node whose depth has increased was one of the !!several!! shallowest children,
-		// and this's depth has therefore not changed.
-		if (depth = d1 - 1) return;
+		// and this's depth has therefore not changed. Parent's depth update is then not needed.
+		if (depth == d1 - 1) return;
 
-		if (parent != nullptr) parent->updateDepth(d1);
+		if (parent != nullptr) parent->updateDepth(depth);
 	}
 
 	void onModuleDestroyed()
@@ -129,8 +135,6 @@ struct PhylogeneticNode
 	}
 };
 
-int PhylogeneticNode::maxPhylogeneticDepth = 0;
-
 
 struct ModulePopulationParameters 
 {
@@ -163,7 +167,7 @@ struct ModulePopulationParameters
 	float moduleElitePercentile;
 };
 
-template <class Module> // how to make sure the type is derived from imodule ?
+template <class Module> // how to enforce (and inform intellisense) that the type is derived from imodule ? TODO
 class ModulePopulation
 {
 
@@ -191,14 +195,14 @@ private:
 	float currentModuleReplacementTreshold;
 
 	// The list of alive modules. 
-	std::unique_ptr<Module* []> modules;
+	std::vector<Module*> modules;
 
 	// The list of modules that have been removed from the "modules" array but are still in use in some Agents.
 	// Once all those agents have been destroyed, the module is destroyed.
 	std::vector<Module*> toBeDestroyedModules;
 
 	// The leaves of the phylogenetic tree.
-	std::unique_ptr<PhylogeneticNode*[]> phylogeneticTree;
+	std::vector<PhylogeneticNode*> phylogeneticTree;
 
 
 
@@ -214,22 +218,20 @@ public:
 		moduleReplacedFraction = p.moduleReplacedFraction;
 		moduleElitePercentile = p.moduleElitePercentile;
 		accumulatedFitnessDecay = p.accumulatedFitnessDecay;
-		mutationsProbability = p.mutationsProbability;
 		nModules = p.nModules;
 
-		// TODO -.7 arbitrary. As it only affects initialization, it can stay here, but
-		// work of satisfactory values must be done.
+		// TODO -.7 arbitrary. As it only affects initialization, it can stay here
 		currentModuleReplacementTreshold = -.7f; // <0
 
 
 		samplingProbabilities = std::make_unique<float[]>(nModules);
-		std::fill(&samplingProbabilities[0], &samplingProbabilities[nModules], 1.0f/(float)nModules)
+		std::fill(&samplingProbabilities[0], &samplingProbabilities[nModules], 1.0f / (float)nModules);
 		avgNumberOfSamplings = std::make_unique<float[]>(nModules);
-		std::fill(&avgNumberOfSamplings[0], &avgNumberOfSamplings[nModules], 0.0f)
+		std::fill(&avgNumberOfSamplings[0], &avgNumberOfSamplings[nModules], 0.0f);
 
 
-		modules = std::make_unique<Module*[]>(nModules);
-		phylogeneticTree = std::make_unique<PhylogeneticNode *[]>(nModules);
+		modules.resize(nModules);
+		phylogeneticTree.resize(nModules);
 
 		
 		for (int j = 0; j < nModules; j++) 
@@ -337,7 +339,7 @@ public:
 
 	Module* sample()
 	{
-		int id = binarySearch(samplingProbabilities, UNIFORM_01);
+		int id = binarySearch(samplingProbabilities.get(), UNIFORM_01, nModules);
 
 		Module* m = modules[id];
 
@@ -380,24 +382,25 @@ public:
 		int nReplacements = 0;
 		int nEliteModules = (int)((float)nModules * moduleElitePercentile);
 		for (int i = 0; i < nModules; i++) {
-			if (modules[i]->lifetimeFitness < currentModuleReplacementTreshold)
-			{
-				modules[i]->isStillEvolved = false;
-				toBeDestroyedModules.push_back(modules[i]);
+			// If the module is fitter than the threshold, continue to next module.
+			if (modules[i]->lifetimeFitness >= currentModuleReplacementTreshold) continue;
+			
+			modules[i]->isStillEvolved = false;
+			toBeDestroyedModules.push_back(modules[i]);
 
-				phylogeneticTree[i]->onModuleDestroyed();
+			phylogeneticTree[i]->onModuleDestroyed();
 
-				int parentID = positions[INT_0X(nEliteModules)];
+			int parentID = positions[INT_0X(nEliteModules)];
 
-				modules[i] = createModuleChild(phylogeneticTree[parentID]);
-				modules[i]->mutate(mutationsProbability);
+			modules[i] = createModuleChild(phylogeneticTree[parentID]);
+			modules[i]->mutate(mutationsProbability);
 				
-				avgNumberOfSamplings[i] = 0.0f;
+			avgNumberOfSamplings[i] = 0.0f;
 
-				phylogeneticTree[i] = new PhylogeneticNode(phylogeneticTree[parentID], i);
+			phylogeneticTree[i] = new PhylogeneticNode(phylogeneticTree[parentID], i);
 
-				nReplacements++;
-			}
+			nReplacements++;
+			
 		}
 		//std::cout << (float)nReplacements / (float)nModules << std::endl;
 		if ((float)nReplacements / (float)nModules > moduleReplacedFraction)
@@ -432,7 +435,7 @@ private:
 			}
 		}
 
-		normalizer = (float)nOld / (normalizer * (float)nModules);
+		normalizer = (float)nOld / (.0000001f + normalizer * (float)nModules); // +epsilon because /0 at first step.
 		float newBornProba = 1.0f / (float)nModules;
 
 		samplingProbabilities[0] = modules[0]->age == 0 ? newBornProba : samplingProbabilities[0] * normalizer;

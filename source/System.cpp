@@ -21,8 +21,8 @@ int nDoneProcessing = 0;
 #include "System.h"
 
 
-
-// src is unchanged.
+// src is unchanged. src can be the same array as dst.
+// Dst has mean 0 and variance 1.
 void normalizeArray(float* src, float* dst, int size) {
 	float avg = 0.0f;
 	for (int i = 0; i < size; i++) {
@@ -41,7 +41,8 @@ void normalizeArray(float* src, float* dst, int size) {
 	}
 }
 
-// src is unchanged. Results in [-1, 1]
+// src is unchanged. src can be the same array as dst.
+// Dst values in [-1, 1], -1 attibuted to the worst of src and 1 to the best.
 void rankArray(float* src, float* dst, int size) {
 	std::vector<int> positions(size);
 	for (int i = 0; i < size; i++) {
@@ -80,18 +81,22 @@ System::System(Trial** _trials, SystemEvolutionParameters& sParams, NetworkParam
 	fittestSpecimen = 0;
 
 
-	// TODO -.7 arbitrary. As it only affects initialization, it can stay here, but
-	// work of satisfactory values must be done.
+	// TODO -.7 arbitrary. As it only affects initialization, it can stay here
 	currentAgentReplacementTreshold = -.7f; // <0
 
-
+	agentsScores.resize(nTrialsPerNetworkCycle);
+	for (int i = 0; i < nTrialsPerNetworkCycle; i++) {
+		agentsScores[i] = new float[nAgents];
+	}
 
 
 	nModulesPerAgent = 0;
 
+	populations.resize(nParams.nLayers);
+
 	int inputArraySize = 0;
 	int destinationArraySize = 0;
-	nModulesPerNetworkLayer.resize(nParams.nLayers);
+	std::vector<int> nModulesPerNetworkLayer(nParams.nLayers);
 	nModulesPerNetworkLayer[0] = 1;
 	for (int l = 0; l < nParams.nLayers; l++)
 	{
@@ -134,26 +139,58 @@ System::System(Trial** _trials, SystemEvolutionParameters& sParams, NetworkParam
 
 System::~System() 
 {
+	stopThreads();
+
 	for (int i = 0; i < populations.size(); i) {
 		delete populations[i];
 	}
+
 	for (int i = 0; i < nAgents; i) {
 		delete agents[i];
 	}
 	delete[] agents;
 
+
+	for (int i = 0; i < nTrialsPerNetworkCycle; i++) {
+		delete agentsScores[i];
+	}
+
+
 }
 
 
-void System::saveFittestSpecimen()
+void System::saveBestAgent()
 {
-	uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+	uint64_t now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
 		std::chrono::system_clock::now().time_since_epoch()).count();
 
-	std::ofstream os("models\\topNet_" + std::to_string(ms) + ".renon", std::ios::binary);
+	std::ofstream os("models\\bestAgent_" + std::to_string(now_ms) + ".moeva", std::ios::binary);
 	agents[fittestSpecimen]->save(os);
 }
 
+
+void System::log() 
+{
+	float avg_avg_s = 0.0f;
+	float max_avg_s = -10000000.0f;
+	float max_s = -1000000.0f;
+	for (int j = 0; j < nAgents ; j++)
+	{
+		float ss = 0.0f;
+		for (int k = 0; k < nNetworksCyclesPerModuleCycle; k++)
+		{
+			float s = agentsScores[k][j];
+			ss += s;
+			max_s = s > max_s ? s : max_s;
+		}
+		ss /= (float)nNetworksCyclesPerModuleCycle;
+		max_avg_s = ss > max_avg_s ? ss : max_avg_s;
+		avg_avg_s += ss;
+	}
+	avg_avg_s /= (float)nAgents;
+	std::cout << "Max score: " << max_s << ", best agent avg score: " 
+		<< max_avg_s << ", avg of avg scores : " << avg_avg_s << std::endl;
+}
 
 
 void System::startThreads()
@@ -168,7 +205,7 @@ void System::startThreads()
 
 	threads.reserve(nThreads);
 	threadIteration = -1;
-	int nAgentsPerThread = nAgents / nThreads;
+	nAgentsPerThread = nAgents / nThreads;
 	for (int t = 0; t < nThreads; t++) {
 		threads.emplace_back(&System::perThreadMainLoop, this, t);
 	}
@@ -231,7 +268,7 @@ void System::perThreadMainLoop(const int threadID)
 					trial->step(agents[a]->getOutput());
 				}
 
-				fitness = trial->score;
+				agentsScores[i][a] = trial->score;
 			}
 		}
 
@@ -250,8 +287,15 @@ void System::evolve(int nSteps)
 	for (int i = 0; i < nSteps; i++) 
 	{
 		
+
 		for (int j = 0; j < nNetworksCyclesPerModuleCycle; j++)
 		{
+			// zero agent score accumulators
+			for (int i = 0; i < nTrialsPerNetworkCycle; i++)
+			{
+				std::fill(agentsScores[i], agentsScores[i] + nAgents, .0f);
+			}
+
 			// send msg to threads to evaluate their agents
 			{
 				std::lock_guard<std::mutex> lg(m);
@@ -266,9 +310,10 @@ void System::evolve(int nSteps)
 				doneProcessing.wait(lg, [] {return nDoneProcessing == 0; });
 			}
 
+			if (j==0) log();
+
 			replaceNetworks();
 		}
-
 
 		uint64_t start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -277,71 +322,62 @@ void System::evolve(int nSteps)
 		}
 
 		uint64_t stop = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-		std::cout << "Step " << i;
-		std::cout << ",  Modules replacement took " << stop - start << " ms." << std::endl;
+		//std::cout << "Step " << i;
+		//std::cout << ",  Modules replacement took " << stop - start << " ms." << std::endl;
 	} 
 }
 
 
-
-void System::accumulateModuleFitnesses()
-{
-
-	for (int i = 0; i < nTrialsPerGroup; i++)
-	{
-		rankArray(groupFitnesses + i * nSpecimens, groupFitnesses + i * nSpecimens, nSpecimens);
-	}
-
-	// update modules and network fitnesses.
-	for (int i = 0; i < nSpecimens; i++)
-	{
-		float f = 0.0f;
-		for (int j = 0; j < nTrialsPerGroup; j++)
-		{
-			f += groupFitnesses[j * nSpecimens + i];
-		}
-		f /= (float)nTrialsPerGroup;
-
-		networks[i]->lifetimeFitness = networks[i]->lifetimeFitness * accumulatedFitnessDecay + f;
-
-		for (int j = 0; j < nNodesPerNetwork; j++) {
-			networks[i]->nodes[j]->tempFitnessAccumulator += f;
-			networks[i]->nodes[j]->nTempFitnessAccumulations++;
-		}
-		if (useInMLP) {
-			networks[i]->inMLP->type->tempFitnessAccumulator += f;
-			networks[i]->inMLP->type->nTempFitnessAccumulations++;
-		}
-		if (useOutMLP) {
-			networks[i]->outMLP->type->tempFitnessAccumulator += f;
-			networks[i]->outMLP->type->nTempFitnessAccumulations++;
-		}
-	}
-}
-
-
-
 void System::replaceNetworks()
 {
+
+	for (int i = 0; i < nTrialsPerNetworkCycle; i++) 
+	{
+		switch (scoreTransformation) {
+
+		case SCORE_BATCH_TRANSFORMATION::NONE:
+			break;
+		case SCORE_BATCH_TRANSFORMATION::NORMALIZE:
+			normalizeArray(agentsScores[i], agentsScores[i], nAgents);
+			break;
+		case SCORE_BATCH_TRANSFORMATION::RANK:
+			rankArray(agentsScores[i], agentsScores[i], nAgents);
+			break;
+		} 
+	}
+
+
+
 	int nReplacements = 0;
 	for (int i = 0; i < nAgents; i++) {
 
+		float f = 0.0f;
+		for (int j = 0; j < nTrialsPerNetworkCycle; j++)
+		{
+			float gamma = 1.0f - powf(1.5f, -(float)(j + agents[i]->nExperiencedTrials - nTrialsPerNetworkCycle));
+			f += gamma * agentsScores[j][i];
+		}
+		f /= (float)nTrialsPerNetworkCycle;
+
+		agents[i]->accumulateFitnessInModules(f);
+
+		agents[i]->lifetimeFitness = agents[i]->lifetimeFitness * accumulatedFitnessDecay + f;
+
+
+		// to be replaced ? if no, continue to next loop iteration.
 		if (agents[i]->lifetimeFitness > currentAgentReplacementTreshold) continue;
 
-
-		// Replace this network
 
 		nReplacements++;
 
 		delete agents[i];
-
 
 		agents[i] = static_cast<IAgent*>(new Network(nModulesPerAgent));
 		static_cast<Network*>(agents[i])->createPhenotype(populations); // This is so stupid TODO aaaaaaaaa
 	}
 
 
-	// TODO .8 arbitrary
+	// TODO .8f is arbitrary
 	if ((float)nReplacements / (float)nAgents > agentsReplacedFraction)  
 	{
 		currentAgentReplacementTreshold = std::max(-10.0f, currentAgentReplacementTreshold / .8f);

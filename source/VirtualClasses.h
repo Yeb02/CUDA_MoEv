@@ -113,14 +113,20 @@ class IAgent
 {
 	
 public:
+
+	IAgent(std::ifstream& is) 
+	{
+		READ_4B(nModules, is);
+		modules = std::make_unique<IModule * []>(nModules);
+	}
 	
-	IAgent() 
+	IAgent(int _nModules)
 	{
 		nExperiencedTrials = 0;
 		nInferencesOverLifetime = 0;
 		lifetimeFitness = 0.0f;
-		nModules = -1;
-		modules = nullptr;
+		nModules = _nModules;
+		modules = std::make_unique<IModule * []>(nModules);
 	}
 
 	virtual ~IAgent() 
@@ -143,6 +149,14 @@ public:
 	virtual void preTrialReset() = 0;
 
 	virtual void destroyPhenotype() = 0;
+
+	void accumulateFitnessInModules(float f) 
+	{
+		for (int j = 0; j < nModules; j++) {
+			modules[j]->tempFitnessAccumulator += f;
+			modules[j]->nTempFitnessAccumulations++;
+		}
+	}
 
 	int nExperiencedTrials;
 
