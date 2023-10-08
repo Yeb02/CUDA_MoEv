@@ -24,7 +24,8 @@ struct SystemEvolutionParameters {
 	// target fraction of the networks that is replaced at the end of a network cycle.
 	float agentsReplacedFraction;
 
-	// for all agents, lifetimeFitness(t) = lifetimeFitness(t-1) * accumulatedFitnessDecay + fitness(t)
+	// for all agents, lifetimeFitness(t) = lifetimeFitness(t-1) * accumulatedFitnessDecay + 
+	// fitness(t) *(1-accumulatedFitnessDecay)
 	float accumulatedFitnessDecay;
 
 	// how many trials each network is evaluated on before a call to replaceNetworks

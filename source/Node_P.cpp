@@ -1,10 +1,13 @@
 #pragma once
+
 #include "Node_P.h"
+
 
 Node_P::Node_P(Node_G* _type, Node_G** nodes, int i, int iC, int* nC, int tNC) :
 	type(_type),
 	toChildren(&_type->toChildren),
-	toOutput(&_type->toOutput)
+	toOutput(&_type->toOutput),
+	childrenInputV(nullptr, 0), concInputV(nullptr, 0), outputV(nullptr, 0)
 {
 	tNC *= nC[0];
 	children.reserve(nC[0]);
@@ -12,17 +15,19 @@ Node_P::Node_P(Node_G* _type, Node_G** nodes, int i, int iC, int* nC, int tNC) :
 		int child_i = nC[0] * i + j;
 		children.emplace_back(nodes[iC + child_i], nodes, child_i, iC + tNC, nC+1, tNC);
 	}
-
-
-	// TotalM is not initialized (i.e. zeroed) because it is set at each inference
-	// by either the parent Node_P, or (for topNode) the parent Network.
 };
 
 
 void Node_P::setArrayPointers(float** iA, float** dArr, float** dArr_preSynAvg)
 {
-	inputArray = *iA;
-	destinationArray = *dArr;
+	//inputArray = *iA;
+	//destinationArray = *dArr;
+	//new (&v) Map<RowVectorXi>(data + 4, 5);
+
+	// placement new is the recommended way: https://eigen.tuxfamily.org/dox/classEigen_1_1Map.html
+	new (&childrenInputV) MVector(*dArr + type->outputSize, toChildren.type->nRows);
+	new (&concInputV) MVector(*iA, toOutput.type->nColumns); // (toOutput and toChildren have the same number of columns)
+	new (&outputV) MVector(*dArr, toOutput.type->nRows);
 
 	*iA += type->inputSize;
 	*dArr += type->outputSize;
@@ -62,8 +67,96 @@ void Node_P::preTrialReset() {
 	// by either the parent Node_P, or (for topNode) the parent Network.
 }
 
+#ifdef ABCD_ETA
+void Node_P::forward() {
 
 
+	auto forwardAndLocalUpdates = [this](InternalConnexion_P& icp, MVector& dstV)
+	{
+
+		constexpr bool HUpdateFirst = true;
+		if (!HUpdateFirst)
+		{
+			dstV = (icp.matrices[0] * concInputV).array().tanh();
+		}
+
+		icp.modulationV.noalias() = icp.type->matricesR[4] * concInputV;
+
+		icp.matrices[1] = (1.0f - icp.type->matrices01[0].array()) * icp.matrices[1].array();
+
+		//std::cerr << icp.matrices[1].rows() << icp.matrices[1].cols() << std::endl;
+		//std::cerr << icp.type->matrices01[0].rows() << icp.type->matrices01[0].cols() << std::endl;
+		//std::cerr << icp.type->matricesR[0].rows() << icp.type->matricesR[0].cols() << std::endl;
+		//std::cerr << icp.type->matricesR[1].rows() << icp.type->matricesR[1].cols() << std::endl;
+		//std::cerr << icp.type->matricesR[2].rows() << icp.type->matricesR[2].cols() << std::endl;
+		//std::cerr << icp.type->matricesR[3].rows() << icp.type->matricesR[3].cols() << std::endl;
+		//std::cerr << dstV.rows() << dstV.cols() << std::endl;
+		//std::cerr << concInputV.rows() << concInputV.cols() << std::endl;
+		//Eigen::MatrixXf aaa = icp.type->matricesR[2].array().rowwise() * concInputV.array().transpose();
+		//std::cerr << aaa.rows() << aaa.cols() << std::endl;
+		//Eigen::MatrixXf bbb = icp.type->matricesR[1].array().colwise() * dstV.array();
+		//std::cerr << bbb.rows() << bbb.cols() << std::endl;
+
+		icp.matrices[1].noalias() += (icp.type->matrices01[0].array() * (
+			(dstV * concInputV.transpose()).array() * icp.type->matricesR[0].array() +
+			icp.type->matricesR[1].array().rowwise() * concInputV.array().transpose() + // Am i high or do colwise and 
+			icp.type->matricesR[2].array().colwise() * dstV.array() +	      // rowwise not make sense at all ?
+			icp.type->matricesR[3].array())).matrix();							  // i.e. should be swapped
+
+		icp.matrices[0].noalias() += (icp.matrices[1].array().colwise() * icp.modulationV.array()).matrix();
+		icp.matrices[0] = icp.matrices[0].cwiseMin(4.0f).cwiseMax(-4.0f);
+		
+		if (HUpdateFirst)
+		{
+			dstV = (icp.matrices[0] * concInputV).array().tanh();
+		}
+	};
+
+
+	// INPUT_(CHILDREN'S OUTPUT)   TO    (CHILDREN'S INPUT)
+	// THEN CHILDREN'S FORWARD
+	if (children.size() != 0) {
+
+		forwardAndLocalUpdates(toChildren, childrenInputV);
+
+		// Each child must be sent its input and accumulated input. 
+		float* apt = childrenInputV.data();
+		for (int i = 0; i < children.size(); i++) {
+
+			std::copy(
+				apt,
+				apt + children[i].type->inputSize,
+				children[i].concInputV.data()
+			);
+
+			apt += children[i].type->inputSize;
+		}
+
+
+		for (int i = 0; i < children.size(); i++) {
+			children[i].forward();
+		}
+
+		// children's output and average output must be retrieved.
+		apt = concInputV.data() + type->inputSize;
+		for (int i = 0; i < children.size(); i++) {
+			std::copy(
+				apt,
+				apt + children[i].type->outputSize,
+				children[i].outputV.data()
+			);
+
+			apt += children[i].type->outputSize;
+		}
+	}
+
+	// INPUT_(CHILDREN'S OUTPUT)   TO    OUTPUT
+	forwardAndLocalUpdates(toOutput, outputV);
+}
+#endif
+
+// better safe than sorry.
+#ifdef PRE_EIGEN_CHANGES
 #ifdef ABCD_ETA
 void Node_P::forward() {
 
@@ -179,12 +272,13 @@ void Node_P::forward() {
 	};
 
 
-	// CHILDREN
+	// INPUT_(CHILDREN'S OUTPUT)   TO    (CHILDREN'S INPUT)
+	// THEN CHILDREN'S FORWARD
 	if (children.size() != 0) {
 
 		forwardAndLocalUpdates(toChildren, type->outputSize);
 
-		// Each child must receive its modulation, input, and accumulated input. 
+		// Each child must be sent its input and accumulated input. 
 		int id = type->outputSize;
 		for (int i = 0; i < children.size(); i++) {
 
@@ -215,7 +309,7 @@ void Node_P::forward() {
 		}
 	}
 	
-	// OUTPUT
+	// INPUT_(CHILDREN'S OUTPUT)   TO    OUTPUT
 	forwardAndLocalUpdates(toOutput, 0);
 }
 #elif defined(SPRAWL_PRUNE) 
@@ -435,5 +529,6 @@ void Node_P::forward(bool firstCall)
 {
 
 }
+#endif
 #endif
 

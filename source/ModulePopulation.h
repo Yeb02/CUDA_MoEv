@@ -167,6 +167,7 @@ struct ModulePopulationParameters
 	float moduleElitePercentile;
 };
 
+
 template <class Module> // how to enforce (and inform intellisense) that the type is derived from imodule ? TODO
 class ModulePopulation
 {
@@ -361,10 +362,23 @@ public:
 	{
 		for (int i = 0; i < nModules; i++) {
 			Module* m = modules[i];
+
+			// how ?
+			//m->age++;
+
 			if (m->nTempFitnessAccumulations == 0) continue;
-			m->tempFitnessAccumulator /= (float)m->nTempFitnessAccumulations;
-			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay + m->tempFitnessAccumulator;
+
+			// WTF ? TODO great performance when it is AFTER the line
+			// "if (m->nTempFitnessAccumulations == 0) continue;"
+			// terrible perf when before. But it should be before !!!
 			m->age++;
+
+			m->tempFitnessAccumulator /= (float)m->nTempFitnessAccumulations;
+
+			// the exponential avg starts at 0 for "newborns"
+			m->lifetimeFitness = m->lifetimeFitness * accumulatedFitnessDecay +
+				(1.0f - accumulatedFitnessDecay) * m->tempFitnessAccumulator;
+			
 		}
 
 
@@ -385,6 +399,11 @@ public:
 			// If the module is fitter than the threshold, continue to next module.
 			if (modules[i]->lifetimeFitness >= currentModuleReplacementTreshold) continue;
 			
+#ifdef YOUNG_AGE_BONUS
+			// The younger a module is, the higher its probability of being randomly saved.
+			if (powf(1.4f, (float)(-1 - modules[i]->age)) > UNIFORM_01) continue;
+#endif
+
 			modules[i]->isStillEvolved = false;
 			toBeDestroyedModules.push_back(modules[i]);
 

@@ -11,8 +11,18 @@ struct InternalConnexion_P {   // responsible of its pointers
 
 	InternalConnexion_G* type;
 
-	std::vector<float*> matrices;
 	std::unique_ptr<float[]> storage;
+
+	std::vector<MMatrix> matrices;
+	std::vector<MVector> vectors; 
+
+	// LAYOUTS ARE DETAILED IN NODE_P::FORWARD()
+
+#ifdef ABCD_ETA
+	// modulation, one real value per line of H
+	Eigen::VectorXf modulationV;
+#endif
+
 
 #ifdef SPRAWL_PRUNE
 	// these arrays are used to store temporary results at each inference step.

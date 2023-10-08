@@ -3,8 +3,16 @@
 #include <memory>
 #include <fstream>
 
+#include <eigen-3.4.0/Eigen/Dense>
+#include <eigen-3.4.0/Eigen/Core>
+
 #include "Random.h"
 #include "config.h"
+
+
+typedef Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> MMatrix; // mapped matrix
+typedef Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 1>> MVector; // column mapped vector
+
 
 inline float mutateDecayParam(float dp, float m = .15f);
 
@@ -17,12 +25,20 @@ struct InternalConnexion_G {
 
 	std::unique_ptr<float[]> storage;
 
-	std::vector<float*> matrices01;
-	std::vector<float*> matricesR;
-	std::vector<float*> vectors01;
-	std::vector<float*> vectorsR;
+	std::vector<MMatrix> matrices01;
+	std::vector<MMatrix> matricesR;
 
-	InternalConnexion_G() { nRows = -1; nColumns = -1; };
+	// vectors are of size nRows.
+	std::vector<MVector> vectors01;
+	std::vector<MVector> vectorsR;
+
+	// LAYOUTS ARE DETAILED IN NODE_P::FORWARD()
+
+	InternalConnexion_G()
+	{ 
+		nRows = -1; 
+		nColumns = -1; 		
+	};
 
 	InternalConnexion_G(int nRows, int nColumns);
 
@@ -41,4 +57,7 @@ struct InternalConnexion_G {
 	}
 
 	void mutate(float p);
+
+	// internal util
+	void createArraysFromStorage();
 };

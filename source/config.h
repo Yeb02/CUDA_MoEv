@@ -43,6 +43,9 @@
 //#define STDP
 
 
+// younger networks and agents have a slight chance of escaping slaughter.
+//#define YOUNG_AGE_BONUS
+
 //******************* END OF PARAMETERS CHOICES ***************//
 
 // what follows must not be modified, it computes the required memory space for the algorithm.

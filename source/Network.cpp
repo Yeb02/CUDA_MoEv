@@ -29,7 +29,7 @@ Network::Network(int nModules)
 
 float* Network::getOutput() 
 {
-	return topNodeP->destinationArray;
+	return topNodeP->outputV.data();
 }
 
 
@@ -110,7 +110,7 @@ void Network::preTrialReset() {
 
 
 void Network::step(float* input) {
-	std::copy(input, input + inS[0], topNodeP->inputArray);
+	std::copy(input, input + inS[0], topNodeP->concInputV.data());
 	
 	topNodeP->forward();
 

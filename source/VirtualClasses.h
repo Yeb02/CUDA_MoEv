@@ -73,6 +73,7 @@ public:
 	// it can be part of an alive Agent.
 	bool isStillEvolved;
 
+
 	// for use in its population
 	float tempFitnessAccumulator;
 	int nTempFitnessAccumulations;
@@ -134,6 +135,14 @@ public:
 		for (int i = 0; i < nModules; i++) modules[i]->nUsesInAgents--;
 	};
 
+	void accumulateFitnessInModules(float f)
+	{
+		for (int j = 0; j < nModules; j++) {
+			modules[j]->tempFitnessAccumulator += f;
+			modules[j]->nTempFitnessAccumulations++;
+		}
+	}
+
 
 	// Same as for the Module class. LAME
 	// virtual Agent(std::ifstream& is) = 0; TODO find a way to do this...
@@ -149,14 +158,6 @@ public:
 	virtual void preTrialReset() = 0;
 
 	virtual void destroyPhenotype() = 0;
-
-	void accumulateFitnessInModules(float f) 
-	{
-		for (int j = 0; j < nModules; j++) {
-			modules[j]->tempFitnessAccumulator += f;
-			modules[j]->nTempFitnessAccumulations++;
-		}
-	}
 
 	int nExperiencedTrials;
 

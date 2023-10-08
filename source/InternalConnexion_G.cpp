@@ -5,7 +5,8 @@
 // set in main.cpp
 float InternalConnexion_G::decayParametersInitialValue = -1.0f;
 
-// Normal mutation in the space of log(half-life constant). m default value is .15f.
+// Normal mutation in the space of log(half-life constant).
+// m default value is .15f set in this file's header.
 inline float mutateDecayParam(float dp, float m) 
 {
 	float exp_r = exp2f(NORMAL_01 * m);
@@ -37,10 +38,6 @@ InternalConnexion_G::InternalConnexion_G(int nRows, int nColumns) :
 	float f0 = 1.0f;
 	f0 = powf((float)nColumns, -.5f); 
 	
-	
-	storage = std::make_unique<float[]>(getNParameters());
-	float* _storagePtr = storage.get();
-
 	auto rand = [&s](float* vec, float b, float f) {
 		for (int i = 0; i < s; i++) {
 			vec[i] = NORMAL_01 * f + b;
@@ -54,127 +51,70 @@ InternalConnexion_G::InternalConnexion_G(int nRows, int nColumns) :
 	};
 
 
-	matrices01.resize(N_STATIC_MATRICES_01);
+	storage = std::make_unique<float[]>(getNParameters());
+
+	createArraysFromStorage();
+
+	float* _storagePtr = storage.get();
+
+	
 	for (int i = 0; i < N_STATIC_MATRICES_01; i++) 
 	{
-		matrices01[i] = _storagePtr;
 		rand01(_storagePtr);
 		_storagePtr += s;
 	}
 
-	matricesR.resize(N_STATIC_MATRICES_R);
 	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
 	{
-		matricesR[i] = _storagePtr;
 		rand(_storagePtr, 0.0f, f0);
 		_storagePtr += s;
 	}
 
 	s = nRows;
 
-	vectors01.resize(N_STATIC_VECTORS_01);
 	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
 	{
-		vectors01[i] = _storagePtr;
 		rand01(_storagePtr);
 		_storagePtr += s;
 	}
 
-	vectorsR.resize(N_STATIC_VECTORS_R);
 	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
 	{
-		vectorsR[i] = _storagePtr;
 		rand(_storagePtr, 0.0f, f0);
 		_storagePtr += s;
 	}
 
 }
+
 
 InternalConnexion_G::InternalConnexion_G(const InternalConnexion_G& gc)
 {
 	nRows = gc.nRows;
 	nColumns = gc.nColumns;
 
-	int s = nRows * nColumns;
+	int s = getNParameters();
 
-	storage = std::make_unique<float[]>(getNParameters());
+	storage = std::make_unique<float[]>(s);
 	std::copy(gc.storage.get(), gc.storage.get() + s, storage.get());
-	float* _storagePtr = storage.get();
 
-	matrices01.resize(N_STATIC_MATRICES_01);
-	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
-	{
-		matrices01[i] = _storagePtr;
-		_storagePtr += s;
-	}
-
-	matricesR.resize(N_STATIC_MATRICES_R);
-	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
-	{
-		matricesR[i] = _storagePtr;
-		_storagePtr += s;
-	}
-
-	s = nRows;
-
-	vectors01.resize(N_STATIC_VECTORS_01);
-	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
-	{
-		vectors01[i] = _storagePtr;
-		_storagePtr += s;
-	}
-
-	vectorsR.resize(N_STATIC_VECTORS_R);
-	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
-	{
-		vectorsR[i] = _storagePtr;
-		_storagePtr += s;
-	}
+	createArraysFromStorage();
 }
 
-InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc) {
 
+InternalConnexion_G InternalConnexion_G::operator=(const InternalConnexion_G& gc) {
 	nRows = gc.nRows;
 	nColumns = gc.nColumns;
 
-	int s = nRows * nColumns;
+	int s = getNParameters();
 
-	storage = std::make_unique<float[]>(getNParameters());
+	storage = std::make_unique<float[]>(s);
 	std::copy(gc.storage.get(), gc.storage.get() + s, storage.get());
-	float* _storagePtr = storage.get();
 
-	matrices01.resize(N_STATIC_MATRICES_01);
-	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
-	{
-		matrices01[i] = _storagePtr;
-		_storagePtr += s;
-	}
-
-	matricesR.resize(N_STATIC_MATRICES_R);
-	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
-	{
-		matricesR[i] = _storagePtr;
-		_storagePtr += s;
-	}
-
-	s = nRows;
-
-	vectors01.resize(N_STATIC_VECTORS_01);
-	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
-	{
-		vectors01[i] = _storagePtr;
-		_storagePtr += s;
-	}
-
-	vectorsR.resize(N_STATIC_VECTORS_R);
-	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
-	{
-		vectorsR[i] = _storagePtr;
-		_storagePtr += s;
-	}
+	createArraysFromStorage();
 
 	return *this;
 }
+
 
 void InternalConnexion_G::mutate(float p) {
 
@@ -214,12 +154,12 @@ void InternalConnexion_G::mutate(float p) {
 	
 	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
 	{
-		mutateDecayMatrix(matrices01[i]);
+		mutateDecayMatrix(matrices01[i].data());
 	}
 
 	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
 	{
-		mutateMatrix(matricesR[i]);
+		mutateMatrix(matricesR[i].data());
 	}
 
 	size = nRows;
@@ -227,15 +167,16 @@ void InternalConnexion_G::mutate(float p) {
 
 	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
 	{
-		mutateDecayMatrix(vectors01[i]);
+		mutateDecayMatrix(vectors01[i].data());
 	}
 
 	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
 	{
-		mutateDecayMatrix(vectorsR[i]);
+		mutateDecayMatrix(vectorsR[i].data());
 	}
 
 }
+
 
 InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
 {
@@ -245,40 +186,9 @@ InternalConnexion_G::InternalConnexion_G(std::ifstream& is)
 	storage = std::make_unique<float[]>(getNParameters());
 	is.read(reinterpret_cast<char*>(storage.get()), getNParameters() * sizeof(float));
 
-	float* _storagePtr = storage.get();
-
-	int s = nRows * nColumns;
-
-	matrices01.resize(N_STATIC_MATRICES_01);
-	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
-	{
-		matrices01[i] = _storagePtr;
-		_storagePtr += s;
-	}
-
-	matricesR.resize(N_STATIC_MATRICES_R);
-	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
-	{
-		matricesR[i] = _storagePtr;
-		_storagePtr += s;
-	}
-
-	s = nRows;
-
-	vectors01.resize(N_STATIC_VECTORS_01);
-	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
-	{
-		vectors01[i] = _storagePtr;
-		_storagePtr += s;
-	}
-
-	vectorsR.resize(N_STATIC_VECTORS_R);
-	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
-	{
-		vectorsR[i] = _storagePtr;
-		_storagePtr += s;
-	}
+	createArraysFromStorage();
 }
+
 
 void InternalConnexion_G::save(std::ofstream& os)
 {
@@ -286,4 +196,42 @@ void InternalConnexion_G::save(std::ofstream& os)
 	WRITE_4B(nColumns, os);
 
 	os.write(reinterpret_cast<const char*>(storage.get()), getNParameters() * sizeof(float));
+}
+
+
+void InternalConnexion_G::createArraysFromStorage()
+{
+	int s = nRows * nColumns;
+
+	float* _storagePtr = storage.get();
+
+	matrices01.reserve(N_STATIC_MATRICES_01);
+	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
+	{
+		matrices01.emplace_back(_storagePtr, nRows, nColumns);
+		_storagePtr += s;
+	}
+
+	matricesR.reserve(N_STATIC_MATRICES_R);
+	for (int i = 0; i < N_STATIC_MATRICES_R; i++)
+	{
+		matricesR.emplace_back(_storagePtr, nRows, nColumns);
+		_storagePtr += s;
+	}
+
+	s = nRows;
+
+	vectors01.reserve(N_STATIC_VECTORS_01);
+	for (int i = 0; i < N_STATIC_VECTORS_01; i++)
+	{
+		vectors01.emplace_back(_storagePtr, nRows);
+		_storagePtr += s;
+	}
+
+	vectorsR.reserve(N_STATIC_VECTORS_R);
+	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
+	{
+		vectorsR.emplace_back(_storagePtr, nRows);
+		_storagePtr += s;
+	}
 }

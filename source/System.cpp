@@ -40,7 +40,7 @@ void normalizeArray(float* src, float* dst, int size) {
 		dst[i] *= InvStddev;
 	}
 }
-
+	
 // src is unchanged. src can be the same array as dst.
 // Dst values in [-1, 1], -1 attibuted to the worst of src and 1 to the best.
 void rankArray(float* src, float* dst, int size) {
@@ -351,22 +351,30 @@ void System::replaceNetworks()
 	int nReplacements = 0;
 	for (int i = 0; i < nAgents; i++) {
 
-		float f = 0.0f;
+		// the exponential avg starts at 0 for "newborns"
+		float fa = agents[i]->lifetimeFitness;
+
+		float fm = agentsScores[0][i];
 		for (int j = 0; j < nTrialsPerNetworkCycle; j++)
 		{
-			float gamma = 1.0f - powf(1.5f, -(float)(j + agents[i]->nExperiencedTrials - nTrialsPerNetworkCycle));
-			f += gamma * agentsScores[j][i];
+			float ds = (1.0F - accumulatedFitnessDecay) * agentsScores[j][i];
+			fa = fa * accumulatedFitnessDecay + ds;
+			fm = fm * accumulatedFitnessDecay + ds;
 		}
-		f /= (float)nTrialsPerNetworkCycle;
 
-		agents[i]->accumulateFitnessInModules(f);
+		agents[i]->accumulateFitnessInModules(fm);
 
-		agents[i]->lifetimeFitness = agents[i]->lifetimeFitness * accumulatedFitnessDecay + f;
+		agents[i]->lifetimeFitness = fa;
 
 
 		// to be replaced ? if no, continue to next loop iteration.
 		if (agents[i]->lifetimeFitness > currentAgentReplacementTreshold) continue;
 
+#ifdef YOUNG_AGE_BONUS
+		// The younger an agent is, the higher its probability of being randomly saved.
+		if (powf(1.4f, (float)(-1 - agents[i]->nExperiencedTrials)) > UNIFORM_01) continue;
+#endif
+		
 
 		nReplacements++;
 

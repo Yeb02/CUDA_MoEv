@@ -50,29 +50,30 @@ Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 	// combines all connexions of the "connexions" array into childCo
 	auto combineConnexions = [&](InternalConnexion_G* childCo)
 	{
-		int sMat = childCo->nRows * childCo->nColumns;
-		for (int i = 0; i < sMat; i++)
+		for (int r = 0; r < childCo->nRows; r++)
 		{
-			for (int j = 0; j < N_STATIC_MATRICES_01; j++) 
+			for (int c = 0; c < childCo->nColumns; c++)
 			{
-				childCo->matrices01[j][i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->matrices01[j][i];
-			}
-			for (int j = 0; j < N_STATIC_MATRICES_R; j++)
-			{
-				childCo->matricesR[j][i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->matricesR[j][i];
+				for (int j = 0; j < N_STATIC_MATRICES_01; j++)
+				{
+					childCo->matrices01[j](r,c) = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->matrices01[j](r,c);
+				}
+				for (int j = 0; j < N_STATIC_MATRICES_R; j++)
+				{
+					childCo->matricesR[j](r,c) = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->matricesR[j](r,c);
+				}
 			}
 		}
 
-		int sArr = childCo->nRows;
-		for (int i = 0; i < sArr; i++)
+		for (int i = 0; i < childCo->nRows; i++)
 		{
 			for (int j = 0; j < N_STATIC_VECTORS_01; j++)
 			{
-				childCo->vectors01[j][i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->vectors01[j][i];
+				childCo->vectors01[j](i) = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->vectors01[j](i);
 			}
 			for (int j = 0; j < N_STATIC_VECTORS_R; j++)
 			{
-				childCo->vectorsR[j][i] = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->vectorsR[j][i];
+				childCo->vectorsR[j](i) = connexions[proportionalParentPool[INT_0X(proportionalParentPoolSize)]]->vectorsR[j](i);
 			}
 		}
 	};
@@ -89,6 +90,7 @@ Node_G* Node_G::combine(Node_G** parents, float* weights, int nParents)
 
 	return child;
 }
+
 
 Node_G::Node_G(std::ifstream& is) {
 

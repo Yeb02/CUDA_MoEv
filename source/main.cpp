@@ -1,5 +1,8 @@
 #pragma once
 
+#include <iostream>
+
+
 #ifdef _DEBUG
 // https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/control87-controlfp-control87-2?view=msvc-170
 // These are incompatible with RocketSim that has many float errors, and should be commented when rocketsim.h and 
@@ -7,15 +10,14 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <float.h>
 unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM);
-
 #endif
+
+
+#include <eigen-3.4.0/Eigen/Core>
 
 #include "System.h"
 #include "Random.h"
 //#include "MNIST.h"
-
-#include <iostream>
-
 
 #ifdef ROCKET_SIM_T
 #include "RocketSim.h"
@@ -29,7 +31,11 @@ int PhylogeneticNode::maxPhylogeneticDepth = 0;
 
 int main()
 {
+    // https://docs.huihoo.com/eigen/3/TopicMultiThreading.html
+    Eigen::initParallel();
+
     LOG("Seed : " << seed);
+
 
 #ifdef ROCKET_SIM_T
     // Path to where you dumped rocket league collision meshes.
@@ -67,34 +73,35 @@ int main()
     int trialActionsSize = trials[0]->netOutSize;
 
     
-    /*
-    // A structurally non trivial example for debugging
-    const int nLayers = 3;
-    int inSizes[nLayers] = { trialObservationsSize, 8, 4};
-    int outSizes[nLayers] = { trialActionsSize, 7, 3};
-    int nChildrenPerLayer[nLayers] = {2, 1, 0};
-    int nEvolvedModulesPerLayer[nLayers] = {64, 128, 128};
-    */
-
+#define TRIVIAL_ARCHITECTURE
+#ifdef TRIVIAL_ARCHITECTURE
     const int nLayers = 1;
     int inSizes[nLayers] = { trialObservationsSize };
     int outSizes[nLayers] = { trialActionsSize };
     int nChildrenPerLayer[nLayers] = { 0 }; // Must end with 0
-    int nEvolvedModulesPerLayer[nLayers] = { 128 };
-
-
+    int nEvolvedModulesPerLayer[nLayers] = { 64 };
+#else
+    // A structurally non trivial example
+    const int nLayers = 3;
+    int inSizes[nLayers] = { trialObservationsSize, 8, 4 };
+    int outSizes[nLayers] = { trialActionsSize, 7, 3 };
+    int nChildrenPerLayer[nLayers] = { 2, 1, 0 }; // Must end with 0
+    int nEvolvedModulesPerLayer[nLayers] = { 32, 64, 64 };
+#endif
+    
 
     InternalConnexion_G::decayParametersInitialValue = .3f;
 
 
     SystemEvolutionParameters sParams;
 
-    sParams.nAgents = 128;
+    sParams.nAgents = 64;
     sParams.agentsReplacedFraction = .2f; //in [0,.5]
     sParams.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
-    sParams.nTrialsPerNetworkCycle = 3;
+    sParams.nTrialsPerNetworkCycle = 2;
     sParams.nNetworksCyclesPerModuleCycle = 2;
     sParams.scoreTransformation = RANK;
+    sParams.accumulatedFitnessDecay = .8f;
 
 
     NetworkParameters nParams;
@@ -118,7 +125,7 @@ int main()
     mpParams.consanguinityDistance = 1; // must be >= 1
 
 
-    int nSteps = 100;
+    int nSteps = 10000;
 
 
     System system(trials.data(), sParams, nParams, mpParams, nThreads);
