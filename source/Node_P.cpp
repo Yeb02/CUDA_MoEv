@@ -20,9 +20,6 @@ Node_P::Node_P(Node_G* _type, Node_G** nodes, int i, int iC, int* nC, int tNC) :
 
 void Node_P::setArrayPointers(float** iA, float** dArr, float** dArr_preSynAvg)
 {
-	//inputArray = *iA;
-	//destinationArray = *dArr;
-	//new (&v) Map<RowVectorXi>(data + 4, 5);
 
 	// placement new is the recommended way: https://eigen.tuxfamily.org/dox/classEigen_1_1Map.html
 	new (&childrenInputV) MVector(*dArr + type->outputSize, toChildren.type->nRows);
@@ -63,8 +60,6 @@ void Node_P::preTrialReset() {
 	toChildren.zeroE();
 	toOutput.zeroE();
 
-	// TotalM is not reinitialized (i.e. zeroed) because it is set at each inference
-	// by either the parent Node_P, or (for topNode) the parent Network.
 }
 
 #ifdef ABCD_ETA
@@ -99,9 +94,9 @@ void Node_P::forward() {
 
 		icp.matrices[1].noalias() += (icp.type->matrices01[0].array() * (
 			(dstV * concInputV.transpose()).array() * icp.type->matricesR[0].array() +
-			icp.type->matricesR[1].array().rowwise() * concInputV.array().transpose() + // Am i high or do colwise and 
-			icp.type->matricesR[2].array().colwise() * dstV.array() +	      // rowwise not make sense at all ?
-			icp.type->matricesR[3].array())).matrix();							  // i.e. should be swapped
+			icp.type->matricesR[1].array().rowwise() * concInputV.array().transpose() +  
+			icp.type->matricesR[2].array().colwise() * dstV.array() +	      
+			icp.type->matricesR[3].array())).matrix();						
 
 		icp.matrices[0].noalias() += (icp.matrices[1].array().colwise() * icp.modulationV.array()).matrix();
 		icp.matrices[0] = icp.matrices[0].cwiseMin(4.0f).cwiseMax(-4.0f);

@@ -187,8 +187,8 @@ private:
 	// biases sampling towards modules that have been sampled the least, relative to their age.
 	std::unique_ptr<float[]> samplingProbabilities;
 
-	// how many times each module has been sampled, divided by its age.
-	std::unique_ptr<float[]> avgNumberOfSamplings;
+	// how many times each module has been sampled during its lifetime
+	std::unique_ptr<int[]> nSamplings;
 
 
 	// lifetime fitness threshold for modules.Dynamic quantity, adjusted after each replacement step
@@ -221,14 +221,14 @@ public:
 		accumulatedFitnessDecay = p.accumulatedFitnessDecay;
 		nModules = p.nModules;
 
-		// TODO -.7 arbitrary. As it only affects initialization, it can stay here
-		currentModuleReplacementTreshold = -.7f; // <0
+
+		currentModuleReplacementTreshold = -(1.0f - accumulatedFitnessDecay) * moduleReplacedFraction * 2.0f; // <0
 
 
 		samplingProbabilities = std::make_unique<float[]>(nModules);
 		std::fill(&samplingProbabilities[0], &samplingProbabilities[nModules], 1.0f / (float)nModules);
-		avgNumberOfSamplings = std::make_unique<float[]>(nModules);
-		std::fill(&avgNumberOfSamplings[0], &avgNumberOfSamplings[nModules], 0.0f);
+		nSamplings = std::make_unique<int[]>(nModules);
+		std::fill(&nSamplings[0], &nSamplings[nModules], 0);
 
 
 		modules.resize(nModules);
@@ -344,13 +344,7 @@ public:
 
 		Module* m = modules[id];
 
-		if (m->age > 0) {
-			avgNumberOfSamplings[id] = (avgNumberOfSamplings[id] * (float)m->age + 1.0f) / (float)m->age;
-		}
-		else {
-			avgNumberOfSamplings[id]++;
-		}
-		
+		nSamplings[id]++;
 
 		modules[id]->nUsesInAgents++;
 
@@ -363,15 +357,10 @@ public:
 		for (int i = 0; i < nModules; i++) {
 			Module* m = modules[i];
 
-			// how ?
-			//m->age++;
+			m->age++;
 
 			if (m->nTempFitnessAccumulations == 0) continue;
 
-			// WTF ? TODO great performance when it is AFTER the line
-			// "if (m->nTempFitnessAccumulations == 0) continue;"
-			// terrible perf when before. But it should be before !!!
-			m->age++;
 
 			m->tempFitnessAccumulator /= (float)m->nTempFitnessAccumulations;
 
@@ -414,7 +403,7 @@ public:
 			modules[i] = createModuleChild(phylogeneticTree[parentID]);
 			modules[i]->mutate(mutationsProbability);
 				
-			avgNumberOfSamplings[i] = 0.0f;
+			nSamplings[i] = 0;
 
 			phylogeneticTree[i] = new PhylogeneticNode(phylogeneticTree[parentID], i);
 
@@ -424,10 +413,10 @@ public:
 		//std::cout << (float)nReplacements / (float)nModules << std::endl;
 		if ((float)nReplacements / (float)nModules > moduleReplacedFraction)
 		{
-			currentModuleReplacementTreshold = std::max(-10.0f, currentModuleReplacementTreshold / .8f);
+			currentModuleReplacementTreshold =  currentModuleReplacementTreshold / .8f;
 		}
 		else {
-			currentModuleReplacementTreshold = std::min(-.03f, currentModuleReplacementTreshold * .8f);
+			currentModuleReplacementTreshold = currentModuleReplacementTreshold * .8f;
 		}
 
 
@@ -447,10 +436,11 @@ private:
 		int nOld = 0;
 		for (int i = 0; i < nModules; i++)
 		{
-			if (modules[i]->age != 0) [[likely]]
+			if (modules[i]->age > 0) [[likely]]
 			{
 				nOld++;
-				normalizer += avgNumberOfSamplings[i];
+				samplingProbabilities[i] = expf(-1.0f* (float)nSamplings[i] / (float)modules[i]->age); // used as temporary storage
+				normalizer += samplingProbabilities[i];
 			}
 		}
 
@@ -460,19 +450,14 @@ private:
 		samplingProbabilities[0] = modules[0]->age == 0 ? newBornProba : samplingProbabilities[0] * normalizer;
 		for (int i = 1; i < nModules; i++)
 		{
-			if (modules[i]->age != 0) [[likely]]
+			if (modules[i]->age > 0) [[likely]]
 			{
-				samplingProbabilities[i] = samplingProbabilities[i - 1] + avgNumberOfSamplings[i] * normalizer;
+				samplingProbabilities[i] = samplingProbabilities[i - 1] + normalizer * samplingProbabilities[i];
 			}
 			else [[unlikely]]
 			{
 				samplingProbabilities[i] = samplingProbabilities[i - 1] + newBornProba;
 			}
-		}
-
-		for (int i = 0; i < nModules; i++)
-		{
-			avgNumberOfSamplings[i] *= (float)modules[i]->age / ((float)modules[i]->age + 1); 
 		}
 	}
 

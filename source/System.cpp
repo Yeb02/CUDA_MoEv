@@ -81,8 +81,8 @@ System::System(Trial** _trials, SystemEvolutionParameters& sParams, NetworkParam
 	fittestSpecimen = 0;
 
 
-	// TODO -.7 arbitrary. As it only affects initialization, it can stay here
-	currentAgentReplacementTreshold = -.7f; // <0
+	
+	currentAgentReplacementTreshold = -(1.0f - accumulatedFitnessDecay) * agentsReplacedFraction * 2.0f; // <0
 
 	agentsScores.resize(nTrialsPerNetworkCycle);
 	for (int i = 0; i < nTrialsPerNetworkCycle; i++) {
@@ -388,10 +388,10 @@ void System::replaceNetworks()
 	// TODO .8f is arbitrary
 	if ((float)nReplacements / (float)nAgents > agentsReplacedFraction)  
 	{
-		currentAgentReplacementTreshold = std::max(-10.0f, currentAgentReplacementTreshold / .8f);
+		currentAgentReplacementTreshold = currentAgentReplacementTreshold / .8f;
 	}
 	else {
-		currentAgentReplacementTreshold = std::min(-.03f, currentAgentReplacementTreshold * .8f);
+		currentAgentReplacementTreshold = currentAgentReplacementTreshold * .8f;
 	}
 }
 
