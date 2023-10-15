@@ -7,80 +7,137 @@
     <Filter Include="headers">
       <UniqueIdentifier>{86fb1d64-2fab-4be8-8bd1-e203cfff1b3c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="headers\Hebbian">
+      <UniqueIdentifier>{f7cc3d4f-e227-4e40-9f3f-8aa9380b19bb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\PredictiveCoding">
+      <UniqueIdentifier>{18c4239a-15be-4056-bd6b-b292a5f3a89d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\Hebbian">
+      <UniqueIdentifier>{29984972-0c6f-4e8c-bdaf-4b82b5d2cc18}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\PredictiveCoding">
+      <UniqueIdentifier>{51d818a2-1de8-4861-a66f-4a283545f8e4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\Evaluation">
+      <UniqueIdentifier>{c6fdc4d3-39ad-4011-b5e3-72c82a4ce889}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\Evaluation">
+      <UniqueIdentifier>{d240d120-ca71-4b36-857a-eb1f8e4dc5b2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="headers\Utils">
+      <UniqueIdentifier>{f5ca6947-dfe0-47da-a444-e0d8bfc29cf5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="source\Utils">
+      <UniqueIdentifier>{002ab46e-f698-4115-854d-ef166cd17d5c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="source\Node_G.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="source\Node_P.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="source\config.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="source\InternalConnexion_G.h">
       <Filter>headers</Filter>
     </ClInclude>
     <ClInclude Include="source\InternalConnexion_P.h">
       <Filter>headers</Filter>
     </ClInclude>
-    <ClInclude Include="source\Network.h">
-      <Filter>headers</Filter>
-    </ClInclude>
     <ClInclude Include="source\System.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="source\Random.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="source\Trial.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="source\NoveltyEncoder.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="source\MNIST.h">
-      <Filter>headers</Filter>
-    </ClInclude>
-    <ClInclude Include="source\VirtualClasses.h">
       <Filter>headers</Filter>
     </ClInclude>
     <ClInclude Include="source\ModulePopulation.h">
       <Filter>headers</Filter>
     </ClInclude>
+    <ClInclude Include="source\HebbianNetwork.h">
+      <Filter>headers\Hebbian</Filter>
+    </ClInclude>
+    <ClInclude Include="source\HebbianNode_G.h">
+      <Filter>headers\Hebbian</Filter>
+    </ClInclude>
+    <ClInclude Include="source\HebbianNode_P.h">
+      <Filter>headers\Hebbian</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PC_Network.h">
+      <Filter>headers\PredictiveCoding</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PC_Node_G.h">
+      <Filter>headers\PredictiveCoding</Filter>
+    </ClInclude>
+    <ClInclude Include="source\PC_Node_P.h">
+      <Filter>headers\PredictiveCoding</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Trial.h">
+      <Filter>headers\Evaluation</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MNIST.h">
+      <Filter>headers\Evaluation</Filter>
+    </ClInclude>
+    <ClInclude Include="source\MoEvCore.h">
+      <Filter>headers\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="source\config.h">
+      <Filter>headers\Utils</Filter>
+    </ClInclude>
     <ClInclude Include="source\Macros.h">
+      <Filter>headers\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Random.h">
+      <Filter>headers\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="source\VirtualAgent.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\Functions.h">
+      <Filter>headers\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="source\VirtualModule.h">
+      <Filter>headers</Filter>
+    </ClInclude>
+    <ClInclude Include="source\VirtualTrial.h">
       <Filter>headers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="source\Node_G.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\Node_P.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="source\InternalConnexion_G.cpp">
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\InternalConnexion_P.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="source\Network.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="source\System.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\Random.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="source\Trial.cpp">
       <Filter>source</Filter>
     </ClCompile>
     <ClCompile Include="source\main.cpp">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="source\HebbianNetwork.cpp">
+      <Filter>source\Hebbian</Filter>
+    </ClCompile>
+    <ClCompile Include="source\HebbianNode_P.cpp">
+      <Filter>source\Hebbian</Filter>
+    </ClCompile>
+    <ClCompile Include="source\HebbianNode_G.cpp">
+      <Filter>source\Hebbian</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PC_Network.cpp">
+      <Filter>source\PredictiveCoding</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PC_Node_G.cpp">
+      <Filter>source\PredictiveCoding</Filter>
+    </ClCompile>
+    <ClCompile Include="source\PC_Node_P.cpp">
+      <Filter>source\PredictiveCoding</Filter>
+    </ClCompile>
     <ClCompile Include="source\MNIST.cpp">
+      <Filter>source\Evaluation</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Trial.cpp">
+      <Filter>source\Evaluation</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Random.cpp">
+      <Filter>source\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="source\Functions.cpp">
+      <Filter>source\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="source\ModulePopulation.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>

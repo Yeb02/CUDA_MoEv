@@ -11,29 +11,40 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="source\Functions.h" />
     <ClInclude Include="source\Macros.h" />
     <ClInclude Include="source\MNIST.h" />
     <ClInclude Include="source\ModulePopulation.h" />
-    <ClInclude Include="source\NoveltyEncoder.h" />
-    <ClInclude Include="source\Node_G.h" />
-    <ClInclude Include="source\Node_P.h" />
+    <ClInclude Include="source\MoEvCore.h" />
+    <ClInclude Include="source\HebbianNode_G.h" />
+    <ClInclude Include="source\HebbianNode_P.h" />
     <ClInclude Include="source\config.h" />
     <ClInclude Include="source\InternalConnexion_G.h" />
     <ClInclude Include="source\InternalConnexion_P.h" />
-    <ClInclude Include="source\Network.h" />
+    <ClInclude Include="source\HebbianNetwork.h" />
+    <ClInclude Include="source\PC_Network.h" />
+    <ClInclude Include="source\PC_Node_G.h" />
+    <ClInclude Include="source\PC_Node_P.h" />
     <ClInclude Include="source\System.h" />
     <ClInclude Include="source\Random.h" />
     <ClInclude Include="source\Trial.h" />
-    <ClInclude Include="source\VirtualClasses.h" />
+    <ClInclude Include="source\VirtualAgent.h" />
+    <ClInclude Include="source\VirtualModule.h" />
+    <ClInclude Include="source\VirtualTrial.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="source\Functions.cpp" />
     <ClCompile Include="source\main.cpp" />
     <ClCompile Include="source\MNIST.cpp" />
-    <ClCompile Include="source\Node_G.cpp" />
-    <ClCompile Include="source\Node_P.cpp" />
+    <ClCompile Include="source\HebbianNode_G.cpp" />
+    <ClCompile Include="source\HebbianNode_P.cpp" />
     <ClCompile Include="source\InternalConnexion_G.cpp" />
     <ClCompile Include="source\InternalConnexion_P.cpp" />
-    <ClCompile Include="source\Network.cpp" />
+    <ClCompile Include="source\HebbianNetwork.cpp" />
+    <ClCompile Include="source\ModulePopulation.cpp" />
+    <ClCompile Include="source\PC_Network.cpp" />
+    <ClCompile Include="source\PC_Node_G.cpp" />
+    <ClCompile Include="source\PC_Node_P.cpp" />
     <ClCompile Include="source\System.cpp" />
     <ClCompile Include="source\Random.cpp" />
     <ClCompile Include="source\Trial.cpp" />
@@ -49,7 +60,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
-    <EnableASAN>false</EnableASAN>
+    <EnableASAN>true</EnableASAN>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -86,6 +97,7 @@
       <PreprocessorDefinitions>WIN32;WIN64;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalIncludeDirectories>$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_DEBUG_cu1_18\libtorch\include;$(ProjectDir)..\CPP_LIBS\libtorch_2.0.1_gpu_DEBUG_cu1_18\libtorch\include\torch\csrc\api\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ShowIncludes>false</ShowIncludes>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>

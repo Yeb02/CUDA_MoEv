@@ -4,7 +4,7 @@
 #include <iostream>
 
 #include "InternalConnexion_G.h"
-#include "config.h"
+#include "MoEvCore.h"
 
 
 struct InternalConnexion_P {   // responsible of its pointers
@@ -18,6 +18,8 @@ struct InternalConnexion_P {   // responsible of its pointers
 
 	// LAYOUTS ARE DETAILED IN NODE_P::FORWARD()
 
+
+#if !defined(PREDICTIVE_CODING)
 #ifdef ABCD_ETA
 	// modulation, one real value per line of H
 	Eigen::VectorXf modulationV;
@@ -31,8 +33,10 @@ struct InternalConnexion_P {   // responsible of its pointers
 	std::unique_ptr<float[]> tempBuffer2; // size nColumns
 
 #endif
+#endif
 
-	void zeroE();
+	void preTrialReset();
+	
 
 	// Should not be called !
 	// And strangely, is never called but removing its declaration causes an error.

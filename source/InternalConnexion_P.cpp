@@ -15,7 +15,8 @@ InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* _type) :
 	modulationV.resize(type->nRows);
 #endif
 
-	storage = std::make_unique<float[]>(s * N_DYNAMIC_MATRICES + type->nRows * N_DYNAMIC_VECTORS);
+	int storageSize = s * N_DYNAMIC_MATRICES + type->nRows * N_DYNAMIC_VECTORS;
+	storage = std::make_unique<float[]>(storageSize);
 
 	float* _storagePtr = storage.get();
 
@@ -32,6 +33,9 @@ InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* _type) :
 		_storagePtr += type->nRows;
 	}
 
+#ifdef PREDICTIVE_CODING
+	std::copy(type->storage.get(), type->storage.get() + storageSize, storage.get());
+#else
 	// initializations:
 	float normalizator = .3f * powf((float)type->nColumns, -.5f);
 	for (int i = 0; i < type->nRows; i++) {
@@ -47,11 +51,12 @@ InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* _type) :
 #endif
 		}
 	}
-
-	// zeroE(); not necessary, because Node_P::preTrialReset() should be called before any computation. 
+#endif
 }
 
-void InternalConnexion_P::zeroE() {
+
+void InternalConnexion_P::preTrialReset()
+{
 	int s = type->nRows * type->nColumns;
 	if (s == 0) return;
 

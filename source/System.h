@@ -5,12 +5,15 @@
 #include <string>
 #include <thread>
 
+#include "MoEvCore.h"
 #include "ModulePopulation.h"
-#include "Network.h"
 #include "Trial.h"
-//#include "NoveltyEncoder.h"
-#include "Random.h"
 
+#ifdef PREDICTIVE_CODING
+#include "PC_Network.h"
+#else
+#include "HebbianNetwork.h"
+#endif
 
 const enum SCORE_BATCH_TRANSFORMATION { NONE = 0, NORMALIZE = 1, RANK = 2};
 
@@ -28,11 +31,11 @@ struct SystemEvolutionParameters {
 	// fitness(t) *(1-accumulatedFitnessDecay)
 	float accumulatedFitnessDecay;
 
-	// how many trials each network is evaluated on before a call to replaceNetworks
-	int nTrialsPerNetworkCycle;
+	// how many trials each network is evaluated on before a call to replaceHebbianNetworks
+	int nTrialsPerAgentCycle;
 
-	// how many calls are made to replaceNetworks before a call to replaceModules
-	int nNetworksCyclesPerModuleCycle;
+	// how many calls are made to replaceHebbianNetworks before a call to replaceModules
+	int nAgentCyclesPerModuleCycle;
 
 	// Raw scores can be transformed into a more sensical measure of the fitness of agents.
 	// Either NONE, RANKING or NORMALIZATION. In doubt, use RANKING. NONE only if you know 
@@ -59,7 +62,7 @@ public:
 	void evolve(int nSteps);
 
 
-	System(Trial** trials, SystemEvolutionParameters& sParams, NetworkParameters& nParams, ModulePopulationParameters& mpParams, int nThreads);
+	System(Trial** trials, SystemEvolutionParameters& sParams, AGENT_PARAMETERS& aParams, ModulePopulationParameters& mpParams, int nThreads);
 
 
 	void setEvolutionParameters(SystemEvolutionParameters params) 
@@ -69,8 +72,8 @@ public:
 
 		this->accumulatedFitnessDecay = params.accumulatedFitnessDecay;
 
-		this->nTrialsPerNetworkCycle = params.nTrialsPerNetworkCycle;
-		this->nNetworksCyclesPerModuleCycle = params.nNetworksCyclesPerModuleCycle;
+		this->nTrialsPerAgentCycle = params.nTrialsPerAgentCycle;
+		this->nAgentCyclesPerModuleCycle = params.nAgentCyclesPerModuleCycle;
 
 		this->scoreTransformation = params.scoreTransformation;
 	}
@@ -90,18 +93,17 @@ public:
 
 
 private:
-	// 1 per thread. TODO "this" can optionnally store a list of nTrialsPerNetworkCycle trial states
+	// 1 per thread. TODO "this" can optionnally store a list of nTrialsPerAgentCycle trial states
 	// so that all agents are evaluated exactly on the same trials.
 	Trial** trials;
-
-	//std::unique_ptr<NoveltyEncoder> noveltyEncoder;
 
 	// Holds the scores per trial per agent, potentially transformed by a normalization or ranking operation.
 	std::vector<float*> agentsScores;
 
-	std::vector<ModulePopulation<Node_G>*> populations;
 
-	IAgent** agents;
+	std::vector<ModulePopulation*> populations;
+
+	AGENT** agents;
 
 	// Util for agents.
 	int nModulesPerAgent;
@@ -115,7 +117,7 @@ private:
 	int fittestSpecimen;
 
 
-	void replaceNetworks();
+	void replaceAgents();
 
 	
 	// How threading goes here: Each thread is assigned a chunk of the agents array, and a trial.
@@ -136,7 +138,7 @@ private:
 	int nAgents;
     float agentsReplacedFraction;
     float accumulatedFitnessDecay; 
-	int nTrialsPerNetworkCycle;
-	int nNetworksCyclesPerModuleCycle;
+	int nTrialsPerAgentCycle;
+	int nAgentCyclesPerModuleCycle;
 	SCORE_BATCH_TRANSFORMATION scoreTransformation;
 };

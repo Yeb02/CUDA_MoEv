@@ -3,18 +3,12 @@
 #include <memory>
 #include <fstream>
 
-#include <eigen-3.4.0/Eigen/Dense>
-#include <eigen-3.4.0/Eigen/Core>
 
 #include "Random.h"
-#include "config.h"
+#include "MoEvCore.h"
 
 
-typedef Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> MMatrix; // mapped matrix
-typedef Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 1>> MVector; // column mapped vector
 
-
-inline float mutateDecayParam(float dp, float m = .15f);
 
 
 struct InternalConnexion_G {

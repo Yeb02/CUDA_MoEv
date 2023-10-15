@@ -3,10 +3,9 @@
 #include <vector>
 #include <iostream>
 
-#include "VirtualClasses.h"
+#include "VirtualTrial.h"
 
-#include "Random.h"
-#include "config.h"
+#include "MoEvCore.h"
 
 
 // Used in trials that have a "positional" component to their output, RocketSIm for instance.

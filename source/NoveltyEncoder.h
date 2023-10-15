@@ -1,6 +1,6 @@
 #pragma once 
 
-#include "config.h"
+#include "MoEvCore.h"
 
 
 #pragma warning( push, 0 )

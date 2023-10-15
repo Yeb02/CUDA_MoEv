@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Macros.h"
-
 ////////////////////////////////////
 ///// USER COMPILATION CHOICES /////
 ////////////////////////////////////
@@ -21,16 +19,29 @@
 //#define ROCKET_SIM_T 
 
 
-// options still in the files : H init (NodeP), trial uses same seed at reset (in population.cpp, thread loop),
-// initial elimination threshold for agents and modules (in system and modulePopulation's constructors )
+// options still in the files : H init (HebbianNodeP.cpp), trial uses same seed at reset (in population.cpp, thread loop),
 
 
-// Sparse mutations consist in adding a sparse gaussian vector to the network, whose components have
-// significant values. Sparse combination replaces each parameter with one of its parents, sampled uniformly
+// Sparse mutations consist in adding a sparse gaussian vector to the module's parameters, whose components have
+// "high" values. Sparse combination replaces each parameter with one of its parents, sampled uniformly
 // among those having higher fitness.
 #define SPARSE_MUTATION_AND_COMBINATIONS
 
 
+//#define PREDICTIVE_CODING
+#ifdef PREDICTIVE_CODING
+
+
+#define PARALLEL_PREDICTIONS
+
+#define TEACHER_PUPIL
+
+#define FORWARD_PROPAGATION
+
+#define PURE_PC
+
+
+#else
 // étayage élagage dans mes notes (étoffage élagage dans les plus anciennes)
 //#define SPRAWL_PRUNE
 
@@ -45,12 +56,41 @@
 
 // younger networks and agents have a slight chance of escaping slaughter.
 //#define YOUNG_AGE_BONUS
+#endif
+
 
 //******************* END OF PARAMETERS CHOICES ***************//
 
-// what follows must not be modified, it computes the required memory space for the algorithm.
-// (by computing how many parameters each module requires.)
+// what follows must not be modified, it computes the required memory space for the algorithm
+// (by computing how many parameters each module requires) and other logic
 
+
+#ifdef PREDICTIVE_CODING
+#define MODULE_P PC_Node_P
+#define MODULE PC_Node_G
+#define MODULE_PARAMETERS PC_Node_GFixedParameters
+#define AGENT PC_Network
+#define AGENT_PARAMETERS PC_NetworkParameters
+#else
+#define MODULE_P HebbianNode_P
+#define MODULE HebbianNode_G
+#define MODULE_PARAMETERS HebbianNode_GFixedParameters
+#define AGENT HebbianNetwork
+#define AGENT_PARAMETERS HebbianNetworkParameters
+#endif
+
+
+#ifdef PREDICTIVE_CODING // TODO if you change the number of atrices you must also change the initialization of InternalConnexion_P
+#define PC_MATS_R 1 // weights
+#define PC_VECS_R 2 // modulation, bias
+#define PC_MATS_DYNA 1 // weights
+#define PC_VECS_DYNA 2 // modulation, bias
+#else
+#define PC_MATS_R 0
+#define PC_VECS_R 0
+#define PC_MATS_DYNA 0
+#define PC_VECS_DYNA 0
+#endif
 
 
 #ifdef STDP
@@ -81,12 +121,14 @@
 #endif
 
 
-#define N_DYNAMIC_MATRICES     (ABCD_ETA_MATS_DYNA + SPRAWL_PRUNE_MATS_DYNA)
-#define N_STATIC_MATRICES_01   (ABCD_ETA_MATS_01 + SPRAWL_PRUNE_MATS_01)
-#define N_STATIC_MATRICES_R    (ABCD_ETA_MATS_R + SPRAWL_PRUNE_MATS_R)
 
-#define N_DYNAMIC_VECTORS      (0  )
+
+#define N_DYNAMIC_MATRICES     (ABCD_ETA_MATS_DYNA + SPRAWL_PRUNE_MATS_DYNA + PC_MATS_DYNA)
+#define N_STATIC_MATRICES_01   (ABCD_ETA_MATS_01 + SPRAWL_PRUNE_MATS_01)
+#define N_STATIC_MATRICES_R    (ABCD_ETA_MATS_R + SPRAWL_PRUNE_MATS_R + PC_MATS_R)
+
+#define N_DYNAMIC_VECTORS      (PC_VECS_DYNA)
 #define N_STATIC_VECTORS_01    (STDP_STAT_VECS_01)
-#define N_STATIC_VECTORS_R	   (0  )
+#define N_STATIC_VECTORS_R	   (PC_VECS_R)
 
 

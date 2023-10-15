@@ -2,30 +2,8 @@
 
 #include "InternalConnexion_G.h"
 
-// set in main.cpp
+
 float InternalConnexion_G::decayParametersInitialValue = -1.0f;
-
-// Normal mutation in the space of log(half-life constant).
-// m default value is .15f set in this file's header.
-inline float mutateDecayParam(float dp, float m) 
-{
-	float exp_r = exp2f(NORMAL_01 * m);
-	float tau = log2f(1.0f - dp);
-
-
-	float t = 1.0f - exp2f(exp_r * tau);
-
-
-	if (t < 0.001f) {
-		t = 0.001f;
-	}
-	else if (t > .999f) {
-		t = .999f;
-	}
-
-	return 1.0f - exp2f(exp_r * tau);
-}
-
 
 
 InternalConnexion_G::InternalConnexion_G(int nRows, int nColumns) :

@@ -4,15 +4,15 @@
 #include <memory>
 #include <cmath>
 
-#include "Random.h"
-#include "Node_G.h"
+#include "MoEvCore.h"
+#include "HebbianNode_G.h"
 #include "InternalConnexion_P.h"
 
-struct Node_P {
+struct HebbianNode_P {
 
-	Node_G* type;
+	HebbianNode_G* type;
 
-	std::vector<Node_P> children;
+	std::vector<HebbianNode_P> children;
 
 
 	// Concatenated children inputs. Once computed, each chunk still
@@ -31,45 +31,44 @@ struct Node_P {
 	
 
 	/*
-	// The following 3 arrays are managed by Network, these are only pointers
+	// The following 3 arrays are managed by HebbianNetwork, these are only pointers
 	// inside pre-allocated storage:
 
 	// Used as the multiplied vector in matrix operations. Layout:
 	// input -> children.out
-	float* inputArray;
+	float* inCoutActivations;
 
 	// Used as the result vector in matrix operations. Layout:
 	// output -> children.in 
-	float* destinationArray;
+	float* outCinActivations;
 
 #ifdef STDP
-	// Same layout as destinationArray, i.e.
+	// Same layout as outCinActivations, i.e.
 	// output ->  children.in 
-	float* destinationArray_preSynAvg;
+	float* outCinActivations_preSynAvg;
 #endif
 	*/
 
 
-	Node_P(Node_G* type, Node_G** nodes, int i, int iC, int* nC, int tNC);
+	HebbianNode_P(HebbianNode_G* type, HebbianNode_G** nodes, int i, int iC, int* nC, int tNC);
 
 	// Should never be called.
-	Node_P() :
+	HebbianNode_P() :
 		childrenInputV(nullptr, 0), concInputV(nullptr, 0), outputV(nullptr, 0)
 	{
 		__debugbreak();
 //#ifdef STDP
-//		destinationArray_preSynAvg = nullptr;
+//		outCinActivations_preSynAvg = nullptr;
 //#endif
-//		destinationArray = nullptr;
-//		inputArray = nullptr;
+//		outCinActivations = nullptr;
+//		inCoutActivations = nullptr;
 
-		//new (&v) Map<RowVectorXi>(data + 4, 5);
 		
 
 		type = nullptr;
 	}
 
-	~Node_P() {};
+	~HebbianNode_P() {};
 
 	void preTrialReset();
 

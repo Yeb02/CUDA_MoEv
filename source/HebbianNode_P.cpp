@@ -1,9 +1,12 @@
 #pragma once
 
-#include "Node_P.h"
+#include "MoEvCore.h"
+#ifndef PREDICTIVE_CODING
+
+#include "HebbianNode_P.h"
 
 
-Node_P::Node_P(Node_G* _type, Node_G** nodes, int i, int iC, int* nC, int tNC) :
+HebbianNode_P::HebbianNode_P(HebbianNode_G* _type, HebbianNode_G** nodes, int i, int iC, int* nC, int tNC) :
 	type(_type),
 	toChildren(&_type->toChildren),
 	toOutput(&_type->toOutput),
@@ -18,7 +21,7 @@ Node_P::Node_P(Node_G* _type, Node_G** nodes, int i, int iC, int* nC, int tNC) :
 };
 
 
-void Node_P::setArrayPointers(float** iA, float** dArr, float** dArr_preSynAvg)
+void HebbianNode_P::setArrayPointers(float** iA, float** dArr, float** dArr_preSynAvg)
 {
 
 	// placement new is the recommended way: https://eigen.tuxfamily.org/dox/classEigen_1_1Map.html
@@ -30,13 +33,13 @@ void Node_P::setArrayPointers(float** iA, float** dArr, float** dArr_preSynAvg)
 	*dArr += type->outputSize;
 
 #ifdef STDP
-	destinationArray_preSynAvg = *dArr_preSynAvg;
+	outCinActivations_preSynAvg = *dArr_preSynAvg;
 	*dArr_preSynAvg += type->outputSize;
 #endif
 
 	for (int i = 0; i < children.size(); i++) {
 		
-		*iA += children[i].type->outputSize;
+		*iA += children[i].type->inputSize;
 
 		*dArr += children[i].type->outputSize;
 #ifdef STDP
@@ -51,19 +54,20 @@ void Node_P::setArrayPointers(float** iA, float** dArr, float** dArr_preSynAvg)
 }
 
 
-void Node_P::preTrialReset() {
+void HebbianNode_P::preTrialReset() {
 
 	for (int i = 0; i < children.size(); i++) {
 		children[i].preTrialReset();
 	}
 
-	toChildren.zeroE();
-	toOutput.zeroE();
+	toChildren.preTrialReset();
+	toOutput.preTrialReset();
 
 }
 
+
 #ifdef ABCD_ETA
-void Node_P::forward() {
+void HebbianNode_P::forward() {
 
 
 	auto forwardAndLocalUpdates = [this](InternalConnexion_P& icp, MVector& dstV)
@@ -79,18 +83,19 @@ void Node_P::forward() {
 
 		icp.matrices[1] = (1.0f - icp.type->matrices01[0].array()) * icp.matrices[1].array();
 
-		//std::cerr << icp.matrices[1].rows() << icp.matrices[1].cols() << std::endl;
-		//std::cerr << icp.type->matrices01[0].rows() << icp.type->matrices01[0].cols() << std::endl;
-		//std::cerr << icp.type->matricesR[0].rows() << icp.type->matricesR[0].cols() << std::endl;
-		//std::cerr << icp.type->matricesR[1].rows() << icp.type->matricesR[1].cols() << std::endl;
-		//std::cerr << icp.type->matricesR[2].rows() << icp.type->matricesR[2].cols() << std::endl;
-		//std::cerr << icp.type->matricesR[3].rows() << icp.type->matricesR[3].cols() << std::endl;
-		//std::cerr << dstV.rows() << dstV.cols() << std::endl;
-		//std::cerr << concInputV.rows() << concInputV.cols() << std::endl;
-		//Eigen::MatrixXf aaa = icp.type->matricesR[2].array().rowwise() * concInputV.array().transpose();
-		//std::cerr << aaa.rows() << aaa.cols() << std::endl;
-		//Eigen::MatrixXf bbb = icp.type->matricesR[1].array().colwise() * dstV.array();
-		//std::cerr << bbb.rows() << bbb.cols() << std::endl;
+		/*std::cerr << icp.matrices[1].rows() << icp.matrices[1].cols() << std::endl;
+		std::cerr << icp.type->matrices01[0].rows() << icp.type->matrices01[0].cols() << std::endl;
+		std::cerr << icp.type->matricesR[0].rows() << icp.type->matricesR[0].cols() << std::endl;
+		std::cerr << icp.type->matricesR[1].rows() << icp.type->matricesR[1].cols() << std::endl;
+		std::cerr << icp.type->matricesR[2].rows() << icp.type->matricesR[2].cols() << std::endl;
+		std::cerr << icp.type->matricesR[3].rows() << icp.type->matricesR[3].cols() << std::endl;
+		std::cerr << dstV.rows() << dstV.cols() << std::endl;
+		std::cerr << concInputV.rows() << concInputV.cols() << std::endl;
+		Eigen::MatrixXf aaa = icp.type->matricesR[2].array().rowwise() * concInputV.array().transpose();
+		std::cerr << aaa.rows() << aaa.cols() << std::endl;
+		Eigen::MatrixXf bbb = icp.type->matricesR[1].array().colwise() * dstV.array();
+		std::cerr << bbb.rows() << bbb.cols() << std::endl;*/
+
 
 		icp.matrices[1].noalias() += (icp.type->matrices01[0].array() * (
 			(dstV * concInputV.transpose()).array() * icp.type->matricesR[0].array() +
@@ -152,73 +157,20 @@ void Node_P::forward() {
 
 // better safe than sorry.
 #ifdef PRE_EIGEN_CHANGES
-#ifdef ABCD_ETA
-void Node_P::forward() {
-
-
-	auto forwardAndLocalUpdates = [this](InternalConnexion_P& icp, int offset)
-	{
-		// Variables defined for readability.
-
-		int nr = icp.type->nRows;
-		int nc = icp.type->nColumns;
-
-		float* H = icp.matrices[0];
-		float* E = icp.matrices[1];
-
-		
-		float* A = icp.type->matricesR[0];
-		float* B = icp.type->matricesR[1];
-		float* C = icp.type->matricesR[2];
-		float* D = icp.type->matricesR[3];
-		float* wMod = icp.type->matricesR[4];
-
-		float* eta = icp.type->matrices01[0];
 
 #ifdef STDP
 		float* mu = icp.type->vectors01[0];
 		float* lambda = icp.type->vectors01[1];
 #endif
 		
-		float* dArr = destinationArray + offset;
+		float* dArr = outCinActivations + offset;
 #ifdef STDP
-		float* dArr_preSynAvg = destinationArray_preSynAvg + offset;
+		float* dArr_preSynAvg = outCinActivations_preSynAvg + offset;
 #endif
 		
-		// All those steps could be individually vectorized. In one block for compacity, as the CPU version 
-		// is not designed to achieve high performances. When explicitly mentionned, 2 steps can be swapped. 
-		// Otherwise, order matters.
-
-		for (int i = 0; i < nr; i++) {
-			int lineOffset = i * nc;
-
-			// 6 and 7, testing in front but can be in the back.
-			if (true) 
-			{
-				float modulation = 0.0f;
-				for (int j = 0; j < nc; j++) {
-					modulation += wMod[lineOffset + j] * inputArray[j];
-				}
-
-				for (int j = 0; j < nc; j++) {
-					int matID = lineOffset + j;
-
-					// 6:  
-					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-						(A[matID] * inputArray[j] * dArr[i] + B[matID] * inputArray[j] + C[matID] * dArr[i] + D[matID]);
-
-
-					// 7:
-					H[matID] += E[matID] * modulation;
-					H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
-				}
-			}
-
-
-			// 0:
 			float preSynAct = 0.0f; 
 			for (int j = 0; j < nc; j++) {
-				preSynAct += H[lineOffset+j] * inputArray[j];
+				preSynAct += H[lineOffset+j] * inCoutActivations[j];
 			}
 
 			// 1:
@@ -244,71 +196,10 @@ void Node_P::forward() {
 #endif
 
 			if (false)
-			{
-				float modulation = 0.0f;
-				for (int j = 0; j < nc; j++) {
-					modulation += wMod[lineOffset + j] * inputArray[j];
-				}
-
-				for (int j = 0; j < nc; j++) {
-					int matID = lineOffset + j;
-
-					// 6:  
-					E[matID] = (1.0f - eta[matID]) * E[matID] + eta[matID] *
-						(A[matID] * inputArray[j] * dArr[i] + B[matID] * inputArray[j] + C[matID] * dArr[i] + D[matID]);
-
-
-					// 7:
-					H[matID] += E[matID] * modulation;
-					H[matID] = std::clamp(H[matID], -4.0f, 4.0f);
-				}
-			}
 		}
 	};
 
-
-	// INPUT_(CHILDREN'S OUTPUT)   TO    (CHILDREN'S INPUT)
-	// THEN CHILDREN'S FORWARD
-	if (children.size() != 0) {
-
-		forwardAndLocalUpdates(toChildren, type->outputSize);
-
-		// Each child must be sent its input and accumulated input. 
-		int id = type->outputSize;
-		for (int i = 0; i < children.size(); i++) {
-
-			std::copy(
-				destinationArray + id,
-				destinationArray + id + children[i].type->inputSize,
-				children[i].inputArray
-			);
-
-			id += children[i].type->inputSize;
-		}
-
-		
-		for (int i = 0; i < children.size(); i++) {
-			children[i].forward();
-		}
-
-		// children's output and average output must be retrieved.
-		id = type->inputSize;
-		for (int i = 0; i < children.size(); i++) {
-			std::copy(
-				inputArray + id,
-				inputArray + id + children[i].type->outputSize,
-				children[i].destinationArray
-			);
-
-			id += children[i].type->outputSize;
-		}
-	}
-	
-	// INPUT_(CHILDREN'S OUTPUT)   TO    OUTPUT
-	forwardAndLocalUpdates(toOutput, 0);
-}
-#elif defined(SPRAWL_PRUNE) 
-void Node_P::forward() 
+void HebbianNode_P::forward()
 {
 	constexpr float epsilon = .1f;
 
@@ -345,9 +236,9 @@ void Node_P::forward()
 		float* lambda = icp.type->vectors01[1];
 #endif
 
-		float* dArr = destinationArray + offset;
+		float* dArr = outCinActivations + offset;
 #ifdef STDP
-		float* dArr_preSynAvg = destinationArray_preSynAvg + offset;
+		float* dArr_preSynAvg = outCinActivations_preSynAvg + offset;
 #endif
 
 		// All those steps could be individually vectorized. In one block for compacity, as the CPU version 
@@ -384,14 +275,14 @@ void Node_P::forward()
 			// 2
 			float modulation = 0.0f;
 			for (int j = 0; j < nc; j++) {
-				modulation += wModA[lineOffset + j] * inputArray[j];
+				modulation += wModA[lineOffset + j] * inCoutActivations[j];
 			}
 
 			// 3
 			for (int j = 0; j < nc; j++) {
 				matID = lineOffset + j;
 
-				EA[matID] = (1.0f - etaA[matID]) * EA[matID] + etaA[matID] * inputArray[j] * dArr[i] *
+				EA[matID] = (1.0f - etaA[matID]) * EA[matID] + etaA[matID] * inCoutActivations[j] * dArr[i] *
 					(dBuffer[matID] * SinvY2 - perRowBuffer[i] * perColumnBuffer[j]);
 
 
@@ -404,7 +295,7 @@ void Node_P::forward()
 			// 4
 			float preSynAct = 0.0f;
 			for (int j = 0; j < nc; j++) {
-				preSynAct += H[lineOffset + j] * inputArray[j];
+				preSynAct += H[lineOffset + j] * inCoutActivations[j];
 			}
 
 			// 5
@@ -427,7 +318,7 @@ void Node_P::forward()
 
 		// 7
 		for (int j = 0; j < nc; j++) {
-			perColumnBuffer[j] = inputArray[j] * inputArray[j];
+			perColumnBuffer[j] = inCoutActivations[j] * inCoutActivations[j];
 		}
 		matID = 0;
 		for (int i = 0; i < nr; i++) {
@@ -466,7 +357,7 @@ void Node_P::forward()
 		matID = 0;
 		for (int i = 0; i < nr; i++) {
 			for (int j = 0; j < nc; j++) {
-				EB[matID] = (1.0f - etaB[matID]) * EB[matID] + etaB[matID] * inputArray[j] * dArr[i] *
+				EB[matID] = (1.0f - etaB[matID]) * EB[matID] + etaB[matID] * inCoutActivations[j] * dArr[i] *
 					(dBuffer[matID] - H[matID] * perRowBuffer[i]);
 
 
@@ -490,9 +381,9 @@ void Node_P::forward()
 		for (int i = 0; i < children.size(); i++) {
 
 			std::copy(
-				destinationArray + id,
-				destinationArray + id + children[i].type->inputSize,
-				children[i].inputArray
+				outCinActivations + id,
+				outCinActivations + id + children[i].type->inputSize,
+				children[i].inCoutActivations
 			);
 
 			id += children[i].type->inputSize;
@@ -507,9 +398,9 @@ void Node_P::forward()
 		id = type->inputSize;
 		for (int i = 0; i < children.size(); i++) {
 			std::copy(
-				inputArray + id,
-				inputArray + id + children[i].type->outputSize,
-				children[i].destinationArray
+				inCoutActivations + id,
+				inCoutActivations + id + children[i].type->outputSize,
+				children[i].outCinActivations
 			);
 
 			id += children[i].type->outputSize;
@@ -519,11 +410,6 @@ void Node_P::forward()
 	// OUTPUT
 	forwardAndLocalUpdates(toOutput, 0);
 }
-#elif defined(PREDICTIVE_CODING)
-void Node_P::forward(bool firstCall)
-{
-
-}
-#endif
 #endif
 
+#endif

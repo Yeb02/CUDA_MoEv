@@ -16,7 +16,7 @@ unsigned int fp_control_state = _controlfp(_EM_UNDERFLOW | _EM_INEXACT, _MCW_EM)
 #include <eigen-3.4.0/Eigen/Core>
 
 #include "System.h"
-#include "Random.h"
+#include "MoEvCore.h"
 //#include "MNIST.h"
 
 #ifdef ROCKET_SIM_T
@@ -28,6 +28,7 @@ using namespace std;
 
 // The .h in which the struct is defined does not have a .cpp because the main class is a template...
 int PhylogeneticNode::maxPhylogeneticDepth = 0;
+
 
 int main()
 {
@@ -68,12 +69,15 @@ int main()
 #endif
     }
 
+#ifdef PARALLEL_PREDICTIONS
+    const int rolloutDurations[] = { 1,2,4,8,16,32,64,128 };
+#endif
  
     int trialObservationsSize = trials[0]->netInSize;
     int trialActionsSize = trials[0]->netOutSize;
 
     
-#define TRIVIAL_ARCHITECTURE
+//#define TRIVIAL_ARCHITECTURE
 #ifdef TRIVIAL_ARCHITECTURE
     const int nLayers = 1;
     int inSizes[nLayers] = { trialObservationsSize };
@@ -98,18 +102,19 @@ int main()
     sParams.nAgents = 64;
     sParams.agentsReplacedFraction = .2f; //in [0,.5]
     sParams.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
-    sParams.nTrialsPerNetworkCycle = 2;
-    sParams.nNetworksCyclesPerModuleCycle = 2;
+    sParams.nTrialsPerAgentCycle = 2;
+    sParams.nAgentCyclesPerModuleCycle = 2;
     sParams.scoreTransformation = RANK;
     sParams.accumulatedFitnessDecay = .8f;
 
 
-    NetworkParameters nParams;
+    AGENT_PARAMETERS aParams;
 
-    nParams.nLayers = nLayers;
-    nParams.inSizes = inSizes;
-    nParams.outSizes = outSizes;
-    nParams.nChildrenPerLayer = nChildrenPerLayer;
+    aParams.nLayers = nLayers;
+    aParams.inSizes = inSizes;
+    aParams.outSizes = outSizes;
+    aParams.nChildrenPerLayer = nChildrenPerLayer;
+
 
     // All parameters excepted maxPhylogeneticDepth could be per modulePopulation, but to limit the number of
     // hyperparameters only nModules is specific to each population (and therefore set by the system).
@@ -128,7 +133,7 @@ int main()
     int nSteps = 10000;
 
 
-    System system(trials.data(), sParams, nParams, mpParams, nThreads);
+    System system(trials.data(), sParams, aParams, mpParams, nThreads);
 
     system.evolve(nSteps);
 
