@@ -19,7 +19,7 @@
 //#define ROCKET_SIM_T 
 
 
-// options still in the files : H init (HebbianNodeP.cpp), trial uses same seed at reset (in population.cpp, thread loop),
+// options still in the files : H init (HebbianNodeP.cpp), trial uses same seed at reset (in system.cpp, thread loop),
 
 
 // Sparse mutations consist in adding a sparse gaussian vector to the module's parameters, whose components have
@@ -28,13 +28,11 @@
 #define SPARSE_MUTATION_AND_COMBINATIONS
 
 
-//#define PREDICTIVE_CODING
+#define PREDICTIVE_CODING
 #ifdef PREDICTIVE_CODING
 
 
 #define PARALLEL_PREDICTIONS
-
-#define TEACHER_PUPIL
 
 #define FORWARD_PROPAGATION
 

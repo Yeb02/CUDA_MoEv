@@ -69,4 +69,29 @@ void InternalConnexion_P::preTrialReset()
 }
 
 
+InternalConnexion_P::InternalConnexion_P(const InternalConnexion_P& icp)
+{
+	type = icp.type;
 
+	int s = type->nRows * type->nColumns;
+
+	int storageSize = s * N_DYNAMIC_MATRICES + type->nRows * N_DYNAMIC_VECTORS;
+	storage = std::make_unique<float[]>(storageSize);
+
+	float* _storagePtr = storage.get();
+
+
+	matrices.reserve(N_DYNAMIC_MATRICES);
+	for (int i = 0; i < N_DYNAMIC_MATRICES; i++) {
+		matrices.emplace_back(_storagePtr, type->nRows, type->nColumns);
+		_storagePtr += s;
+	}
+
+	vectors.reserve(N_DYNAMIC_VECTORS);
+	for (int i = 0; i < N_DYNAMIC_VECTORS; i++) {
+		vectors.emplace_back(_storagePtr, type->nRows);
+		_storagePtr += type->nRows;
+	}
+
+	std::copy(icp.storage.get(), icp.storage.get() + storageSize, storage.get());
+}

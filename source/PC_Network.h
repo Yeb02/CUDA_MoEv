@@ -27,6 +27,10 @@ public:
 
 	PC_Network(int nModules);
 
+	// WARNING this constructor does not create a valid agent for evolution, but merely 
+	// a "teacher" agent. It should NOT be used to create anything else than a teacher.
+	PC_Network(const PC_Network& pcn);
+
 	~PC_Network() {};
 	
 
@@ -58,7 +62,7 @@ public:
 
 	void step(float* input, bool supervised, float* target = nullptr) override;
 
-
+	// This has become obsolete, consider removing it. Problem is that it is useful for hebbian networks.
 	void preTrialReset() override;
 	
 	void createPhenotype(std::vector<ModulePopulation*>& populations);

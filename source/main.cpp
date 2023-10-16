@@ -77,7 +77,7 @@ int main()
     int trialActionsSize = trials[0]->netOutSize;
 
     
-//#define TRIVIAL_ARCHITECTURE
+#define TRIVIAL_ARCHITECTURE
 #ifdef TRIVIAL_ARCHITECTURE
     const int nLayers = 1;
     int inSizes[nLayers] = { trialObservationsSize };
@@ -102,7 +102,8 @@ int main()
     sParams.nAgents = 64;
     sParams.agentsReplacedFraction = .2f; //in [0,.5]
     sParams.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
-    sParams.nTrialsPerAgentCycle = 2;
+    sParams.nEvaluationTrialsPerAgentCycle = 2;
+    sParams.nSupervisedTrialsPerAgentCycle = 4;// std::max(2, nThreads); // either 0, or >= nThreads !!
     sParams.nAgentCyclesPerModuleCycle = 2;
     sParams.scoreTransformation = RANK;
     sParams.accumulatedFitnessDecay = .8f;

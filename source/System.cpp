@@ -32,12 +32,14 @@ System::System(Trial** _trials, SystemEvolutionParameters& sParams, AGENT_PARAME
 
 	fittestSpecimen = 0;
 
+	agentFitnesses.resize(nAgents);
+	teachers.resize(nSupervisedTrialsPerAgentCycle);
 
 	
 	currentAgentReplacementTreshold = -(1.0f - accumulatedFitnessDecay) * agentsReplacedFraction * 2.0f; // <0
 
-	agentsScores.resize(nTrialsPerAgentCycle);
-	for (int i = 0; i < nTrialsPerAgentCycle; i++) {
+	agentsScores.resize(nEvaluationTrialsPerAgentCycle);
+	for (int i = 0; i < nEvaluationTrialsPerAgentCycle; i++) {
 		agentsScores[i] = new float[nAgents];
 	}
 
@@ -111,8 +113,12 @@ System::~System()
 	delete[] agents;
 
 
-	for (int i = 0; i < nTrialsPerAgentCycle; i++) {
+	for (int i = 0; i < nEvaluationTrialsPerAgentCycle; i++) {
 		delete agentsScores[i];
+	}
+	
+	for (int i = 0; i < nSupervisedTrialsPerAgentCycle; i++) {
+		delete teachers[i];
 	}
 
 
@@ -129,7 +135,7 @@ void System::saveBestAgent()
 }
 
 
-void System::log() 
+void System::log(int step) 
 {
 	float avg_avg_s = 0.0f;
 	float max_avg_s = -10000000.0f;
@@ -148,7 +154,7 @@ void System::log()
 		avg_avg_s += ss;
 	}
 	avg_avg_s /= (float)nAgents;
-	std::cout << "Max score: " << max_s << ", best agent avg score: " 
+	std::cout << "At step " << step << ", max score : " << max_s << ", best agent avg score : " 
 		<< max_avg_s << ", avg of avg scores : " << avg_avg_s << std::endl;
 }
 
@@ -211,13 +217,57 @@ void System::perThreadMainLoop(const int threadID)
 			break;
 		}
 		ul.unlock();
-
-
 		currentThreadIteration++;
 
+
+
+		// teaching/ supervised learning phase
+		for (int t = 0; t < nSupervisedTrialsPerAgentCycle; t++) 
+		{
+
+			AGENT* teacher = teachers[(threadID + t) % nSupervisedTrialsPerAgentCycle];
+			
+			float* teacherOutput = teacher->getOutput();
+			
+			teacher->preTrialReset();
+			for (int a = threadID * nAgentsPerThread; a < (threadID + 1) * nAgentsPerThread; a++) {
+				agents[a]->preTrialReset();
+			}
+
+			trial->reset(false);
+
+			while (!trial->isTrialOver)
+			{
+				teacher->step(trial->observations.data(), false);
+				for (int a = threadID * nAgentsPerThread; a < (threadID + 1) * nAgentsPerThread; a++)
+				{
+					agents[a]->step(trial->observations.data(), true, teacherOutput);
+				}
+
+				trial->step(teacherOutput);
+			}
+
+			ul.lock();
+			nDoneProcessing--;
+			if (nDoneProcessing == 0) {
+				ul.unlock();
+				doneProcessing.notify_one();
+				ul.lock();
+			}
+
+			
+			startProcessing.wait(ul, [&currentThreadIteration, this] {return (currentThreadIteration == threadIteration); });
+			ul.unlock();
+			currentThreadIteration++;
+		}
+
+
+
+		
+		// evaluation phase
 		for (int a = threadID * nAgentsPerThread; a < (threadID + 1) * nAgentsPerThread; a++)
 		{
-			for (int i = 0; i < nTrialsPerAgentCycle; i++)
+			for (int i = 0; i < nEvaluationTrialsPerAgentCycle; i++)
 			{
 				trial->reset(false);
 				agents[a]->preTrialReset();
@@ -244,33 +294,47 @@ void System::perThreadMainLoop(const int threadID)
 
 void System::evolve(int nSteps) 
 {
-	for (int i = 0; i < nSteps; i++) 
+	// small hack because their are no teachers at the very first agent cycle.
+	int tmp_nSupervisedTrialsPerAgentCycle = nSupervisedTrialsPerAgentCycle;
+	nSupervisedTrialsPerAgentCycle = 0;
+
+	for (int s = 0; s < nSteps; s++) 
 	{
 		
 
 		for (int j = 0; j < nAgentCyclesPerModuleCycle; j++)
 		{
 			// zero agent score accumulators
-			for (int i = 0; i < nTrialsPerAgentCycle; i++)
+			for (int i = 0; i < nEvaluationTrialsPerAgentCycle; i++)
 			{
 				std::fill(agentsScores[i], agentsScores[i] + nAgents, .0f);
 			}
 
-			// send msg to threads to evaluate their agents
+			// + 1 for the evaluation part.
+			for (int i = 0; i < nSupervisedTrialsPerAgentCycle + 1; i++)
 			{
-				std::lock_guard<std::mutex> lg(m);
-				nDoneProcessing = nThreads;
-				threadIteration++;
-			}
-			startProcessing.notify_all();
+				// send msg to threads to evaluate their agents
+				{
+					std::lock_guard<std::mutex> lg(m);
+					nDoneProcessing = nThreads;
+					threadIteration++;
+				}
+				startProcessing.notify_all();
 
-			// wait on threads.
+				// wait on threads.
+				{
+					std::unique_lock<std::mutex> lg(m);
+					doneProcessing.wait(lg, [] {return nDoneProcessing == 0; });
+				}
+			}
+
+			// see hack at the beginning of this function
+			if ((s + j) == 0)
 			{
-				std::unique_lock<std::mutex> lg(m);
-				doneProcessing.wait(lg, [] {return nDoneProcessing == 0; });
+				nSupervisedTrialsPerAgentCycle = tmp_nSupervisedTrialsPerAgentCycle;
 			}
 
-			if (j==0) log();
+			if (j == nAgentCyclesPerModuleCycle-1) log(s);
 
 			replaceAgents();
 		}
@@ -282,7 +346,7 @@ void System::evolve(int nSteps)
 		}
 
 		uint64_t stop = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-		//std::cout << "Step " << i;
+		//std::cout << "Step " << s;
 		//std::cout << ",  Modules replacement took " << stop - start << " ms." << std::endl;
 	} 
 }
@@ -291,7 +355,7 @@ void System::evolve(int nSteps)
 void System::replaceAgents()
 {
 
-	for (int i = 0; i < nTrialsPerAgentCycle; i++) 
+	for (int i = 0; i < nEvaluationTrialsPerAgentCycle; i++) 
 	{
 		switch (scoreTransformation) {
 
@@ -315,7 +379,7 @@ void System::replaceAgents()
 		float fa = agents[i]->lifetimeFitness;
 
 		float fm = agentsScores[0][i];
-		for (int j = 0; j < nTrialsPerAgentCycle; j++)
+		for (int j = 0; j < nEvaluationTrialsPerAgentCycle; j++)
 		{
 			float ds = (1.0F - accumulatedFitnessDecay) * agentsScores[j][i];
 			fa = fa * accumulatedFitnessDecay + ds;
@@ -326,22 +390,18 @@ void System::replaceAgents()
 
 		agents[i]->lifetimeFitness = fa;
 
+		// if its fitness is too low, the agent is to be replaced  
+		if (agents[i]->lifetimeFitness <= currentAgentReplacementTreshold) 
+		{
+			nReplacements++;
 
-		// to be replaced ? if no, continue to next loop iteration.
-		if (agents[i]->lifetimeFitness > currentAgentReplacementTreshold) continue;
+			delete agents[i];
 
-#ifdef YOUNG_AGE_BONUS
-		// The younger an agent is, the higher its probability of being randomly saved.
-		if (powf(1.4f, (float)(-1 - agents[i]->nExperiencedTrials)) > UNIFORM_01) continue;
-#endif
+			agents[i] = new AGENT(nModulesPerAgent);
+			agents[i]->createPhenotype(populations);
+		}
 		
-
-		nReplacements++;
-
-		delete agents[i];
-
-		agents[i] = new AGENT(nModulesPerAgent);
-		agents[i]->createPhenotype(populations);
+		agentFitnesses[i] = agents[i]->lifetimeFitness;
 	}
 
 
@@ -352,6 +412,28 @@ void System::replaceAgents()
 	}
 	else {
 		currentAgentReplacementTreshold = currentAgentReplacementTreshold * .8f;
+	}
+
+
+	// Determine teachers.
+	{
+		std::vector<int> positions(nAgents);
+		for (int i = 0; i < nAgents; i++) {
+			positions[i] = i;
+		}
+		float* src = agentFitnesses.data();
+
+		// sort "positions" by ascending fitnesses.
+		std::sort(positions.begin(), positions.end(), [src](int a, int b) -> bool
+			{
+				return src[a] < src[b];
+			}
+		);
+
+		for (int i = 0; i < nSupervisedTrialsPerAgentCycle; i++) {
+			delete teachers[i];
+			teachers[i] = new AGENT(*(agents[positions[nAgents - 1 - i]]));
+		}
 	}
 }
 

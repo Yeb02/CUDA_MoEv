@@ -38,9 +38,7 @@ struct InternalConnexion_P {   // responsible of its pointers
 	void preTrialReset();
 	
 
-	// Should not be called !
-	// And strangely, is never called but removing its declaration causes an error.
-	InternalConnexion_P(const InternalConnexion_P&) { __debugbreak();  type = nullptr; };
+	InternalConnexion_P(const InternalConnexion_P& icp);
 	
 	// Should not be called !
 	InternalConnexion_P() { __debugbreak();  type = nullptr; };

@@ -26,6 +26,30 @@ PC_Network::PC_Network(int nModules)
 }
 
 
+PC_Network::PC_Network(const PC_Network& pcn)
+	: IAgent(0) 
+{
+
+	rootNode.reset(new PC_Node_P(*(pcn.rootNode.get())));
+
+	activations = std::make_unique<float[]>(activationArraySize);
+	accumulators = std::make_unique<float[]>(activationArraySize);
+
+	// The following values will be modified by each node of the phenotype as the pointers are set.
+	float* ptr_activations = activations.get() + outS[0];
+	float* ptr_accumulators = accumulators.get() + outS[0];
+	float* outputActivations = activations.get();
+	float* outputAccumulators = accumulators.get();
+
+	rootNode->setArrayPointers(
+		&ptr_activations,
+		&ptr_accumulators,
+		outputActivations,
+		outputAccumulators
+	);
+}
+
+
 float* PC_Network::getOutput()
 {
 	return rootNode->outputActivations.data();
@@ -108,7 +132,11 @@ void PC_Network::step(float* input, bool supervised, float* target)
 			rootNode->outputActivations += .1f * rootNode->outputAccumulators;
 		}
 	}
-	rootNode->xUpdate_simultaneous();
+
+	if (supervised) {
+		//std::fill(accumulators.get(), accumulators.get() + activationArraySize, 0.0f);
+		rootNode->thetaUpdate_simultaneous();
+	}
 
 	nInferencesOverLifetime++;
 }

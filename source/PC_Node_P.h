@@ -36,6 +36,8 @@ struct PC_Node_P {
 
 	PC_Node_P(PC_Node_G* type, PC_Node_G** nodes, int i, int iC, int* nC, int tNC);
 
+	PC_Node_P(const PC_Node_P& pcnp);
+
 	// Should never be called.
 	PC_Node_P() :
 		inCoutActivations(nullptr, 0), outputActivations(nullptr, 0), inputActivations(nullptr, 0),
@@ -56,7 +58,8 @@ struct PC_Node_P {
 	void xUpdate_simultaneous();
 
 	// Recursive function. When the network calls it on the root node, all weights, biases, and modulation weights
-	// of the tree are updated simultaneously.
+	// of the tree are updated simultaneously. (thetas can not be updated any other way than simultaneously if their
+	// update is not intertwined with that of the activations (x) anyway.)
 	void thetaUpdate_simultaneous();
 
 

@@ -26,6 +26,23 @@ PC_Node_P::PC_Node_P(PC_Node_G* _type, PC_Node_G** nodes, int i, int iC, int* nC
 };
 
 
+PC_Node_P::PC_Node_P(const PC_Node_P& pcnp) :
+	type(pcnp.type),
+	toChildren(),
+	toOutput(pcnp.toOutput),
+	inCoutActivations(nullptr, 0), outputActivations(nullptr, 0), inputActivations(nullptr, 0),
+	inCoutAccumulators(nullptr, 0), outputAccumulators(nullptr, 0), inputAccumulators(nullptr, 0)
+{
+	children.reserve(type->nChildren);
+	toChildren.reserve(type->nChildren);
+
+	for (int j = 0; j < type->nChildren; j++) 
+	{	
+		children.emplace_back(pcnp.children[j]);
+		toChildren.emplace_back(pcnp.toChildren[j]);
+	}
+}
+
 void PC_Node_P::setArrayPointers(float** ptr_activations, float** ptr_accumulators, float* outActivations, float* outAccumulators)
 {
 
@@ -58,21 +75,22 @@ void PC_Node_P::setArrayPointers(float** ptr_activations, float** ptr_accumulato
 
 void PC_Node_P::xUpdate_simultaneous()
 {
-	// The update of an activation consists in adding the gradient of the energy * learning rate. This gradient is accumulated in the _Accumulators arrays,
+	// The update of an activation consists in substracting the gradient of the energy * learning rate. This (-)gradient is accumulated in the _Accumulators arrays,
 	// and is the difference of 2 numbers: the epsilon and the eta.
 	// 
 	// epsilon_l = X_l - bias_l+1 + theta_l+1*f(x_l+1)
 	// eta_l     = (theta_l-1.transposed * epsilon_l-1) * f'(x_l)
-	// grad = eta - epsilon
-	// 
+	// -grad = eta - epsilon
+	// x -= lr * grad
+	//  
 	// "This" handles the update of its children's inputs and outputs. If this is the root node, the output and input of this are managed by the PC_Network.
 
 
 
-	// grad_out += - epsilon_out = bias + theta*f(X_inCout) - X_out
+	// grad_out = - epsilon_out = bias + theta*f(X_inCout) - X_out
 	outputAccumulators += (toOutput.vectors[0] + toOutput.matrices[0] * inCoutActivations.array().tanh().matrix()) - outputActivations;
 
-	// grad_inCout += delta_inCout = (thetaTransposed * epsilon_out) * f'(X_inCout)
+	// grad_inCout += eta_inCout = (thetaTransposed * epsilon_out) * f'(X_inCout)
 	inCoutAccumulators -= ((toOutput.matrices[0].transpose() * outputAccumulators).array() * (1.0f - inCoutActivations.array().tanh().square())).matrix();
 
 	for (int i = 0; i < type->nChildren; i++) 
@@ -80,15 +98,15 @@ void PC_Node_P::xUpdate_simultaneous()
 		// grad_Cin = - epsilon_Cin = bias + theta*f(X_inCout) - X_Cin
 		children[i].inputAccumulators.noalias() = (toChildren[i].vectors[0] + toChildren[i].matrices[0] * inCoutActivations.array().tanh().matrix()) - children[i].inputActivations;
 
-		// grad_inCout += delta_inCout = (thetaTransposed * epsilon_Cin) * f'(X_inCout)
+		// grad_inCout += eta_inCout = (thetaTransposed * epsilon_Cin) * f'(X_inCout)
 		inCoutAccumulators -= ((toChildren[i].matrices[0].transpose() * children[i].inputAccumulators).array() * (1.0f - inCoutActivations.array().tanh().square())).matrix();
 
 
 		// child's update
 		children[i].xUpdate_simultaneous();
 
-		children[i].inputActivations += .1f * children[i].inputAccumulators;
-		children[i].outputActivations += .1f * children[i].outputAccumulators;
+		children[i].inputActivations += .5f * children[i].inputAccumulators;
+		children[i].outputActivations += .5f * children[i].outputAccumulators;
 	}
 
 	return;
@@ -97,12 +115,10 @@ void PC_Node_P::xUpdate_simultaneous()
 
 void PC_Node_P::thetaUpdate_simultaneous() 
 {
-	const float lr = .01f;
+	const float lr = .0002f;
 
 	// stored in the grad accumulator for convenience: f(X_inCout)
 	inCoutAccumulators.noalias() = inCoutActivations.array().tanh().matrix();
-
-
 
 
 	// stored in the grad accumulator for convenience: epsilon_out = X_out - (theta*f(X_inCout) + bias)
@@ -111,25 +127,28 @@ void PC_Node_P::thetaUpdate_simultaneous()
 	// lr is injected here to do n multiplications instead of n*(n+1) 
 	outputAccumulators *= lr;
 
-	// theta += theta_grad * lr (theta_grad = f(x_inCout) * epsilon_out.transpose)
-	toOutput.matrices[0] += inCoutAccumulators * outputAccumulators.transpose();
+	// TODO tester avec + et -
 
-	// bias += -epsilon_out * lr
+	// theta -= theta_grad * lr (theta_grad = f(x_inCout) * epsilon_out.transpose)
+	toOutput.matrices[0] -= outputAccumulators * inCoutAccumulators.transpose();
+
+
+	// bias -= bias_grad * lr (bias_grad = epsilon_out)
 	toOutput.vectors[0] -= outputAccumulators;
 
 
 	for (int i = 0; i < type->nChildren; i++)
 	{
-		// stored in the grad accumulator for convenience: epsilon_out = X_out - (theta*f(X_inCout) + bias)
+		// stored in the grad accumulator for convenience: epsilon_cIn = X_cIn - (theta*f(X_inCout) + bias)
 		children[i].inputAccumulators.noalias() = children[i].inputActivations - (toChildren[i].vectors[0] + toChildren[i].matrices[0] * inCoutAccumulators);
 
 		// lr is injected here to do n multiplications instead of n*(n+1) 
 		children[i].inputAccumulators *= lr;
 
-		// theta += theta_grad * lr (theta_grad = f(x_inCout) * epsilon_out.transpose)
-		toChildren[i].matrices[0] += inCoutAccumulators * children[i].inputAccumulators.transpose();
+		// theta -= theta_grad * lr (theta_grad = f(x_inCout) * epsilon_cIn.transpose)
+		toChildren[i].matrices[0] -= children[i].inputAccumulators * inCoutAccumulators.transpose();
 
-		// bias += -epsilon_out * lr
+		// bias -= bias_grad * lr (bias_grad = epsilon_cIn)
 		toChildren[i].vectors[0] -= children[i].inputAccumulators;
 		
 

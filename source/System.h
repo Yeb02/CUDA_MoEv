@@ -31,10 +31,13 @@ struct SystemEvolutionParameters {
 	// fitness(t) *(1-accumulatedFitnessDecay)
 	float accumulatedFitnessDecay;
 
-	// how many trials each network is evaluated on before a call to replaceHebbianNetworks
-	int nTrialsPerAgentCycle;
+	// how many trials each agent is evaluated on before a call to replaceAgents
+	int nEvaluationTrialsPerAgentCycle;
 
-	// how many calls are made to replaceHebbianNetworks before a call to replaceModules
+	// how many trial each agent (teacher or pupil) is learning on from a teacher.
+	int nSupervisedTrialsPerAgentCycle;
+
+	// how many calls are made to replaceAgents before a call to replaceModules
 	int nAgentCyclesPerModuleCycle;
 
 	// Raw scores can be transformed into a more sensical measure of the fitness of agents.
@@ -72,7 +75,8 @@ public:
 
 		this->accumulatedFitnessDecay = params.accumulatedFitnessDecay;
 
-		this->nTrialsPerAgentCycle = params.nTrialsPerAgentCycle;
+		this->nEvaluationTrialsPerAgentCycle = params.nEvaluationTrialsPerAgentCycle;
+		this->nSupervisedTrialsPerAgentCycle = params.nSupervisedTrialsPerAgentCycle;
 		this->nAgentCyclesPerModuleCycle = params.nAgentCyclesPerModuleCycle;
 
 		this->scoreTransformation = params.scoreTransformation;
@@ -93,7 +97,7 @@ public:
 
 
 private:
-	// 1 per thread. TODO "this" can optionnally store a list of nTrialsPerAgentCycle trial states
+	// 1 per thread. TODO "this" can optionnally store a list of nEvaluationTrialsPerAgentCycle trial states
 	// so that all agents are evaluated exactly on the same trials.
 	Trial** trials;
 
@@ -108,6 +112,13 @@ private:
 	// Util for agents.
 	int nModulesPerAgent;
 
+
+	// pointers to the teacher networks, which are deep copies of the evolved agents picked for this role. 
+	// Size nSupervisedTrialsPerAgentCycle, assuming each agent is supervised on only one
+	// trial by each teacher. (and teacher are not supervised by themselves...)
+	std::vector<AGENT*> teachers;
+
+	std::vector<float> agentFitnesses; // only used to sort fitnesses to determine the teachers.
 
 	// lifetime fitness threshold for networks. Dynamic quantity, adjusted after each replacement step
 	// to match the actual replaced fraction with networksReplacedFraction more closely at the next step.
@@ -131,14 +142,15 @@ private:
 	void perThreadMainLoop(const int threadID);
 
 	// prints out fitness information.
-	void log();
+	void log(int step);
 
 	// EVOLUTION PARAMETERS: 
 	// Set with a SystemEvolutionParameters struct. Description in the struct definition.
 	int nAgents;
     float agentsReplacedFraction;
     float accumulatedFitnessDecay; 
-	int nTrialsPerAgentCycle;
+	int nEvaluationTrialsPerAgentCycle;
+	int nSupervisedTrialsPerAgentCycle;
 	int nAgentCyclesPerModuleCycle;
 	SCORE_BATCH_TRANSFORMATION scoreTransformation;
 };
