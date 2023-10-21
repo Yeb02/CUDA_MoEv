@@ -1,8 +1,8 @@
-# CUDA_MoEv
+# MOdular EVolution
 
-A 2 loops learning algorithm. Black box optimization, so it can be applied to any problem, even those requiring collaborating agents. Instances of the problem to be solved will be refered to as *trials*. Trials do not return rewards at each step, but only a *score* at the end.
+A 2 loops meta-learning black box algorithm. Can be applied to any problem, even those requiring interacting agents. Is best suited for tasks requiring memory and in-environment learning. Instances of the problem to be solved will be refered to as *trials*. Trials need not return rewards at each step, but only a *score* at the end.
 
-## Agent local rules
+### Agent local rules
 
 The agents use local learning rules to learn during their lifetime. Hebbian rules + modulated eligibility traces were supported (ABCD_ETA, or SPRAWL_PRUNE), but are not updated anymore so they may not compile. Currently, the learning rule is a modulated version of predictive coding. 
 
@@ -17,11 +17,11 @@ Genotypic modules are split into several fixed size *populations*, varying from 
 <img align="left" width = 400 src="./diagrams/populations.png">
 <img align="center" width = 300 src="./diagrams/agentsPool.png">
 
-*In this example, there are 5 modules per population, and 4 agents. These parameters can be modified independently.*
+*In this example, there are 5 modules per population, and 4 agents. These parameters can be modified independently, typical value would be 256 for both. Here, agents have 1 module from population 1, 2 from pop. 2, 4 from pop. 3. This is not random, see next section.*
 
 #### Agent structure
 
-The agent's network architecture is a tree of modules. The agent has a pointer to the root node, and an inference / learning step is performed by calling the appropriate recursive function on the root node. 
+The agent's network architecture is a tree of phenotypic modules. The agent has a pointer to the root module, and an inference / learning step is performed by calling the appropriate recursive function on the root. The agent's input and output are that of the root <sub><sup>(not necessarily, as in PC both observations and actions can be seen as sensory modalities)</sup></sub>. <br/>
 A phenotypic module has an input activation vector, an output activation, and a set of children phenotypic modules. Leaf modules do not have children. The root is at depth 0, (also called layer in the code)
 its children at depth 1, etc. All phenotypic modules at a certain depth have types from the same population, so they have the same size hyperparameters, which includes the number of children. 
 
@@ -33,11 +33,11 @@ its children at depth 1, etc. All phenotypic modules at a certain depth have typ
 <br />
 ## Lifelong learning loop
 
-There are 2 imbricated evolution loops. The outermost is over evolution steps, called *module cycles*. The innermost is over *agents cycles*.
+There are 2 imbricated evolution loops. The outermost is over evolution steps, called *module cycles*. The innermost is over *agents cycles*, to refine the fitness estimates.
 
 ### agent cycle
 
-- Supervised learning phase: All agents experiences a number of trials. During a trial, each agent is paired with a teacher agent. Teacher agents are the subset that performed the best in the previous steps. At each step of the trial, the observation is transmitted to both the teacher and the student agent. The teacher's action are computed, and used to supervise the student's actions. The actions sent to the trial are those of the teacher. At the end of the trial, the score is discarded.
+- Supervised learning phase: All agents experience a number of trials. During a trial, each agent is paired with a teacher agent. Teacher agents are the subset that performed the best at the previous agent cycle. At each step of the trial, the observation is transmitted to both the teacher and the student agent. The teacher's action are computed, and used to supervise the student's actions. The actions sent to the trial are those of the teacher. At the end of the trial, the score is discarded, and the pair disbanded.
 
 - Unsupervised evaluation phase: All agents experience trials. After each trial, the agents lifetime fitnesses are updated with and exponential moving average, using a transformation of the score on the trial.
 
@@ -53,3 +53,12 @@ There are 2 imbricated evolution loops. The outermost is over evolution steps, c
    <br />
 
 Evolution then consists in repeating module cycles until convergence or satisfactory results.
+
+
+# Implementation note
+
+As of now (and despite the name of the project), CUDA and Cublas functions are excluded from the project, since the time they take to develop and iterate on is not worth the performance gain on my hardware (GTX 1050M). Instead, acceleration is performed by CPU threading and Eigen for BLAS. 
+
+Libtorch is in the includes list but is not used. It can be removed without consequences.
+
+There are many hyperparameters to play with, and variants of the algorithm to switch to. These can be tweaked in main.cpp and config.h .
