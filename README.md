@@ -31,7 +31,7 @@ its children at depth 1, etc. All phenotypic modules at a certain depth have typ
 <br />
 ## Lifelong learning loop
 
-There are 3 imbricated evolution loops. The outermost is over evolution steps. The second is over *module cycles*. The innermost is over *agents cycles*.
+There are 2 imbricated evolution loops. The outermost is over evolution steps, called *module cycles*. The innermost is over *agents cycles*.
 
 ### agent cycle
 
@@ -41,12 +41,13 @@ There are 3 imbricated evolution loops. The outermost is over evolution steps. T
 
 - Once all agents have been evaluated: Each agent updates the fitness of all genotypic modules that are pointed to by its phenotype (exponential moving average with the agent's fitness). Then, the agent's lifetime fitnesses are sorted, and the worst x percentile is eliminated (x is a hyperparameter). The same number of agents is created to replace them. At an agent's creation, a set of genotypic modules are sampled from the populations. The phenotype is initialized, by copying the genotype's weights to the phenotype in the case of PC. The modification of these weights during the agents lifetime does not impact the genotype: the meta-learned weights are just used to initialize the lifetime weights.
 
-### module cycle
+### *module cycle*, or evolution step
 
 - Perform a number of agent cycles.
 - In each population, remove the worst y percentile of genotypic modules, and replace them with new ones. A module (G) is created by first combining a *primary* parent module with its relatives, and then mutating the result. The primary parent is sampled from the population with a bias towards high fitnesses. The relatives are sampled among modules that are phylogenetically not too far from the primary parent, also with a bias towards high fitnesses. Ttrack is kept of these relations with a phylogenetic tree. The *combination* is then the usual crossover operations, generalized to *n* parents (this whole process is generalized mating).
 
-### evolution step
+ <br />
+  <br />
+   <br />
 
-- 
-
+Evolution then consists in repeating module cycles until convergence or satisfactory results.
