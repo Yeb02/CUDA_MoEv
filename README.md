@@ -14,8 +14,8 @@ The meta-optimizer is akin to a genetic algorithm, but there significant differe
 A phenotypic module belongs to only one agent, and an agent is nothing more than the set of its phenotypic modules. But several phenotypic modules, belonging to one or several agents, can have the same type. Genotypic modules are not owned nor managed by agents, but by the meta-optimizer. They are the evolved quantities of the algorithm, forming a common genomic pool. 
 Genotypic modules are split into several fixed size *populations*, varying from each other by size hyperparameters. All agents have the same architecture, they only differ by the values of their phenotypic and genotypic real-valued parameters. Therefore all agents have the same number of types from each population. 
 
-<img align="left" width = 500 src="./diagrams/populations.png">
-<img align="center" width = 400 src="./diagrams/agentsPool.png">
+<img align="left" width = 400 src="./diagrams/populations.png">
+<img align="center" width = 300 src="./diagrams/agentsPool.png">
 
 #### Agent structure
 
@@ -23,8 +23,8 @@ The agent's network architecture is a tree of modules. The agent has a pointer t
 A phenotypic module has an input activation vector, an output activation, and a set of children phenotypic modules. Leaf modules do not have children. The root is at depth 0, (also called layer in the code)
 its children at depth 1, etc. All phenotypic modules at a certain depth have types from the same population, so they have the same size hyperparameters, which includes the number of children. 
 
-<img align="left" width = 500 src="./diagrams/agentArchitecture.png">
-<img align="center" width = 400 src="./diagrams/moduleArchitecture.png">
+<img align="left" width = 400 src="./diagrams/agentArchitecture.png">
+<img align="center" width = 300 src="./diagrams/moduleArchitecture.png">
 
 *In this example, the agents have 3 "layers", and both the first and second layer's modules have 2 children. On the right, the internal structure of a Module_P that has 2 children. To make it a leaf, keep only the input and output blocs.*
 <br />
