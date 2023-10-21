@@ -19,14 +19,14 @@ Genotypic modules are split into several fixed size *populations*, varying from 
 
 #### Agent structure
 
-The agent's network architecture is a tree of modules. The agent has a pointer to the root node, and an inference/learning step is performed by calling the recursive step() function on the root node. 
+The agent's network architecture is a tree of modules. The agent has a pointer to the root node, and an inference / learning step is performed by calling the appropriate recursive function on the root node. 
 A phenotypic module has an input activation vector, an output activation, and a set of children phenotypic modules. Leaf modules do not have children. The root is at depth 0, (also called layer in the code)
 its children at depth 1, etc. All phenotypic modules at a certain depth have types from the same population, so they have the same size hyperparameters, which includes the number of children. 
 
 <img align="left" width = 400 src="./diagrams/agentArchitecture.png">
 <img align="center" width = 300 src="./diagrams/moduleArchitecture.png">
 
-*In this example, the agents have 3 "layers", and both the first and second layer's modules have 2 children. On the right, the internal structure of a Module_P that has 2 children. To make it a leaf, keep only the input and output blocs.*
+*In this example, the agents have 3 "layers", and both the first and second layer's modules have 2 children. On the right, the internal structure of a Module_P that has 2 children. To make it a leaf, keep only the input and output blocs. When the local rule is predictive coding, the lefthand layer predicts the mean of the righthand layer.*
 <br />
 <br />
 ## Lifelong learning loop
