@@ -12,10 +12,12 @@ The meta-optimizer is akin to a genetic algorithm, but there significant differe
 
 *Agents* are not directly evolved, but are made of *phenotypic modules* (Module_P). A phenotypic module has a set of parameters that are modified by the agent during its lifelong learning, like Hebbian weights, or predictive coding weights, activations, modulation values, .... A phenotypic module also has a *type*, a pointer to a *genotypic module* (Module_G). A genotypic module is a set of parameters that are evolved by the meta-optimizer. Hebbian rules parameters, or initial predictive coding weights for instance. 
 A phenotypic module belongs to only one agent, and an agent is nothing more than the set of its phenotypic modules. But several phenotypic modules, belonging to one or several agents, can have the same type. Genotypic modules are not owned nor managed by agents, but by the meta-optimizer. They are the evolved quantities of the algorithm, forming a common genomic pool. 
-Genotypic modules are split into several fixed size *populations*, varying from each other by size hyperparameters. All agents have the same architecture, they only differ by the values of their phenotypic and genotypic real-valued parameters. Therefore all agents have the same number of types from each population. 
+Genotypic modules are split into several fixed size *populations*, varying from each other by size hyperparameters. All agents have the same architecture, they only differ by the values of their phenotypic and genotypic real-valued parameters. They also have the same number of genomic types from each population. 
 
 <img align="left" width = 400 src="./diagrams/populations.png">
 <img align="center" width = 300 src="./diagrams/agentsPool.png">
+
+*In this example, there are 5 modules per population, and 4 agents. These parameters can be modified independently.*
 
 #### Agent structure
 
