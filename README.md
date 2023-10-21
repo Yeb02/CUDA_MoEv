@@ -4,7 +4,7 @@ A 2 loops learning algorithm. Black box optimization, so it can be applied to an
 
 ## Agent local rules
 
-The agents use local learning rules to learn during their lifetime. Hebbian rules + modulated eligibility traces were supported (ABCD_ETA, or SPRAWL_PRUNE), but are currently not updated so they may not compile. Currently, the learning rule is a modulated version of predictive coding. 
+The agents use local learning rules to learn during their lifetime. Hebbian rules + modulated eligibility traces were supported (ABCD_ETA, or SPRAWL_PRUNE), but are not updated anymore so they may not compile. Currently, the learning rule is a modulated version of predictive coding. 
 
 ## The meta-learning algorithm
 
