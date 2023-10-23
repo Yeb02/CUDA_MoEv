@@ -4,9 +4,11 @@ A 2 loops meta-learning black box algorithm. Can be applied to any problem, even
 
 This algorithm is currently being tested on quadruped motor control with sensorymotor information (petoi bittle and unitree go1), as well as on the video game Rocket League.
 
+
 ### Agent local rules
 
 The agents use local learning rules to learn during their lifetime. Hebbian rules + modulated eligibility traces were supported (ABCD_ETA, or SPRAWL_PRUNE), but are not updated anymore so they may not compile. Currently, the learning rule is a modulated version of predictive coding. 
+The agent's architecture is is very similar to that in the [DeMoCEvo](https://github.com/Yeb02/CUDA_DeMoCEvo) algorithm.
 
 ## The meta-learning algorithm
 
