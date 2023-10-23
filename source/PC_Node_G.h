@@ -45,9 +45,14 @@ public:
 	int nChildren;
 	int inputSize, outputSize; // >= 1
 
+
+
+	// Evolved parameters:
+
 	// Structs containing the constant, evolved, matrix of parameters linking internal nodes.
 	std::vector<InternalConnexion_G> toChildren; // nRows = children.inputSize
 	InternalConnexion_G toOutput; // nRows = outputSize
+
 
 
 	int getNParameters() override;

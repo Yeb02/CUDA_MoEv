@@ -44,20 +44,22 @@ int main()
 #endif
 
     int nThreads = std::thread::hardware_concurrency();
+#ifdef _DEBUG
+    nThreads = 1; // Because multi-threaded functions are difficult debug line by line in VS
+#endif
     LOG(nThreads << " concurrent threads are supported at hardware level.");
 
     std::vector<Trial*> trials;
     trials.resize(nThreads);
 
-#ifdef _DEBUG
-    nThreads = 1; // Because multi-threaded functions are difficult debug line by line in VS
-#endif
 
     for (int i = 0; i < nThreads; i++) {
 #ifdef CARTPOLE_T
         trials[i] = new CartPoleTrial(true); // bool : continuous control.
 #elif defined XOR_T
         trials[i] = new XorTrial(4, 5);  // int : vSize, int : delay
+#elif defined TEACHING_T
+        trials[i] = new TeachingTrial(5, 5);
 #elif defined TMAZE_T
         trials[i] = new TMazeTrial(false);
 #elif defined N_LINKS_PENDULUM_T
@@ -69,9 +71,6 @@ int main()
 #endif
     }
 
-#ifdef PARALLEL_PREDICTIONS
-    const int rolloutDurations[] = { 1,2,4,8,16,32,64,128 };
-#endif
  
     int trialObservationsSize = trials[0]->netInSize;
     int trialActionsSize = trials[0]->netOutSize;
@@ -86,15 +85,23 @@ int main()
     int nEvolvedModulesPerLayer[nLayers] = { 64 };
 #else
     // A structurally non trivial example
-    const int nLayers = 3;
-    int inSizes[nLayers] = { trialObservationsSize, 8, 4 };
-    int outSizes[nLayers] = { trialActionsSize, 7, 3 };
-    int nChildrenPerLayer[nLayers] = { 2, 1, 0 }; // Must end with 0
-    int nEvolvedModulesPerLayer[nLayers] = { 32, 64, 64 };
+    const int nLayers = 2;
+    int inSizes[nLayers] = { trialObservationsSize, 4};
+    int outSizes[nLayers] = { trialActionsSize, 3};
+    int nChildrenPerLayer[nLayers] = { 2, 0 }; // Must end with 0
+    int nEvolvedModulesPerLayer[nLayers] = { 32, 64 };
 #endif
     
+#ifdef ACTION_L_OBS_O
+    {
+        int temp = inSizes[0];
+        inSizes[0] = outSizes[0];
+        outSizes[0] = temp;
+    }
+#endif
 
-    InternalConnexion_G::decayParametersInitialValue = .3f;
+
+    InternalConnexion_G::decayParametersInitialValue = .5f;
 
 
     SystemEvolutionParameters sParams;
@@ -102,8 +109,9 @@ int main()
     sParams.nAgents = 64;
     sParams.agentsReplacedFraction = .2f; //in [0,.5]
     sParams.nEvolvedModulesPerLayer = nEvolvedModulesPerLayer;
-    sParams.nEvaluationTrialsPerAgentCycle = 2;
-    sParams.nSupervisedTrialsPerAgentCycle = 4;// std::max(2, nThreads); // either 0, or >= nThreads !!
+    sParams.nEvaluationTrialsPerAgentCycle = 4;
+    int nSupervisedTrialsPerAgentCycle = 4; // either 0, or >= nThreads !! The logic next line enforces it.
+    sParams.nSupervisedTrialsPerAgentCycle = (nSupervisedTrialsPerAgentCycle == 0 ? 0 : std::max(nSupervisedTrialsPerAgentCycle, nThreads));
     sParams.nAgentCyclesPerModuleCycle = 2;
     sParams.scoreTransformation = RANK;
     sParams.accumulatedFitnessDecay = .8f;
@@ -118,7 +126,7 @@ int main()
 
 
     // All parameters excepted maxPhylogeneticDepth could be per modulePopulation, but to limit the number of
-    // hyperparameters only nModules is specific to each population (and therefore set by the system).
+    // hyperparameters only nModules is specific to each population (and therefore set by the system for simplicity).
     ModulePopulationParameters mpParams;
 
     //mpParams.nModules = sParams.nEvolvedModulesPerLayer[l]; 

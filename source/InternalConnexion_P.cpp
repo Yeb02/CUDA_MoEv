@@ -1,5 +1,6 @@
 #include "InternalConnexion_P.h"
 
+
 InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* _type) : 
 	type(_type)
 {
@@ -34,7 +35,11 @@ InternalConnexion_P::InternalConnexion_P(InternalConnexion_G* _type) :
 	}
 
 #ifdef PREDICTIVE_CODING
-	std::copy(type->storage.get(), type->storage.get() + storageSize, storage.get());
+	std::copy(type->matricesR[0].data(), type->matricesR[0].data() + s, matrices[0].data()); // theta
+	std::copy(type->vectorsR[0].data(), type->vectorsR[0].data() + type->nRows, vectors[0].data()); // bias
+#ifdef ACTIVATION_VARIANCE
+	std::copy(type->vectors01[0].data(), type->vectors01[0].data() + type->nRows, vectors[1].data()); // sigmas
+#endif
 #else
 	// initializations:
 	float normalizator = .3f * powf((float)type->nColumns, -.5f);

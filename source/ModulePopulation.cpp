@@ -101,7 +101,7 @@ MODULE* ModulePopulation::createModuleChild(PhylogeneticNode* primaryParent) {
 
 	std::vector<MODULE*> parentNodes;
 
-#ifdef  SPARSE_MUTATION_AND_COMBINATIONS
+#ifdef  SPARSE_COMBINATIONS
 	parentNodes.push_back(modules[parents[0]]);
 	for (int i = 1; i < parents.size(); i++) {
 		if (modules[parents[i]]->lifetimeFitness > f0) {

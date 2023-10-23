@@ -11,6 +11,6 @@ typedef Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, 1>> MVector; // column m
 
 #define WRITE_4B(i, os) os.write(reinterpret_cast<const char*>(&i), 4);
 #define READ_4B(i, is) is.read(reinterpret_cast<char*>(&i), 4);
-#define LOGV(v) for (const auto e : v) {cout << std::setprecision(2)<< e << " ";}; cout << "\n"
-#define LOG(x) cout << x << endl;
+#define LOGV(v) for (const auto e : v) {std::cout << std::setprecision(2)<< e << " ";}; std::cout << "\n"
+#define LOG(x) std::cout << x << std::endl;
 

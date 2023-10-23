@@ -7,6 +7,28 @@
 
 
 
+struct Expliciter 
+{
+	std::unique_ptr<float[]> as;
+	std::unique_ptr<float[]> bs;
+	int n;
+
+	Expliciter(int _n) : n(_n) 
+	{
+		as = std::make_unique<float[]>(n);
+		bs = std::make_unique<float[]>(n);
+
+
+		// TODO
+	}
+
+	// requires the array x has n free slots AFTER x. 
+	void enlarge(float* x) {
+		for (int i = 0; i < n; i++) {
+			*(x + 1 + i) = sinf(as[i] * (*x) + bs[i]);
+		}
+	}
+};
 
 // The base virtual class which any trial should inherit from. 
 // The score attribute must be a positive measure of the success of the run.

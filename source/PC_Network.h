@@ -67,6 +67,7 @@ public:
 	
 	void createPhenotype(std::vector<ModulePopulation*>& populations);
 
+	// This has become obsolete, consider removing it. Problem is that it is useful for hebbian networks.
 	void destroyPhenotype() override;
 
 };

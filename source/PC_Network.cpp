@@ -33,6 +33,13 @@ PC_Network::PC_Network(const PC_Network& pcn)
 	rootNode.reset(new PC_Node_P(*(pcn.rootNode.get())));
 
 	activations = std::make_unique<float[]>(activationArraySize);
+
+	// if changed here, change createPhenotype too.
+	//std::fill(activations.get(), activations.get() + activationArraySize, 0.0f);
+	for (int i = 0; i < activationArraySize; i++) {
+		activations[i] = NORMAL_01 * .3f;
+	}
+
 	accumulators = std::make_unique<float[]>(activationArraySize);
 
 	// The following values will be modified by each node of the phenotype as the pointers are set.
@@ -52,7 +59,11 @@ PC_Network::PC_Network(const PC_Network& pcn)
 
 float* PC_Network::getOutput()
 {
+#ifdef ACTION_L_OBS_O
+	return rootNode->inputActivations.data();
+#else
 	return rootNode->outputActivations.data();
+#endif
 }
 
 
@@ -61,7 +72,6 @@ void PC_Network::destroyPhenotype() {
 
 	activations.reset(NULL);
 	accumulators.reset(NULL);
-
 }
 
 
@@ -87,12 +97,17 @@ void PC_Network::createPhenotype(std::vector<ModulePopulation*>& populations)
 	}
 
 
-	// I do not understand why I have to use reinterpret_cast instead of static_cast here.
-	// Is there a bug of some sort ? TODO 
 	rootNode.reset(new PC_Node_P(modules[0], &(modules[0]), 0, 1, nC, 1));
 
 
 	activations = std::make_unique<float[]>(activationArraySize);
+
+	// if changed here, change (teacher) copy constructor too.
+	//std::fill(activations.get(), activations.get() + activationArraySize, 0.0f);
+	for (int i = 0; i < activationArraySize; i++) {
+		activations[i] = NORMAL_01 * .3f;
+	}
+	
 	accumulators = std::make_unique<float[]>(activationArraySize);
 		
 	// The following values will be modified by each node of the phenotype as the pointers are set.
@@ -113,31 +128,73 @@ void PC_Network::createPhenotype(std::vector<ModulePopulation*>& populations)
 
 void PC_Network::preTrialReset() {
 	nExperiencedTrials++;
+	//std::fill(activations.get(), activations.get() + activationArraySize, 0.0f); // ?
 };
 
 
 void PC_Network::step(float* input, bool supervised, float* target) 
 {
+	// TODO evolve per module ? If you change it here, it must also be updated in PC_Node_P::xUpdate_simultaneous() 
+	constexpr float xlr = .5f;
+
+
+#ifdef ACTION_L_OBS_O
+	MVector vtarget(target, inS[0]);
+#endif
+
+#ifdef ACTION_L_OBS_O
+	std::copy(input, input + outS[0], rootNode->outputActivations.data());
+#else
 	std::copy(input, input + inS[0], rootNode->inputActivations.data());
-	
 	if (supervised) {
 		std::copy(target, target + outS[0], rootNode->outputActivations.data());
 	}
+#endif
+	
+	
 
+	// inference
 	for (int i = 0; i < 10; i++) 
 	{
 		std::fill(accumulators.get(), accumulators.get() + activationArraySize, 0.0f);
+		
+
+#ifdef ACTION_L_OBS_O
+
+
+		if (supervised) {
+			// store -epsilon_in in the root's inputAccumulators.
+			// Even if ACTIVATION_VARIANCE is defined, do not multiply by invSigmas. The root handles it.
+			rootNode->inputAccumulators = vtarget - rootNode->inputActivations;
+		}
+		rootNode->xUpdate_simultaneous();
+		rootNode->inputActivations += xlr * rootNode->inputAccumulators;
+
+		// TODO outputActivations (i.e. observations) update ? Update mask ? low lr ? ...
+#else 
+
+
 		rootNode->xUpdate_simultaneous();
 		if (!supervised) {
-			rootNode->outputActivations += .1f * rootNode->outputAccumulators;
+			rootNode->outputActivations += xlr * rootNode->outputAccumulators;
 		}
+
+
+#endif
 	}
 
+	// learning
+
+
+#ifdef MODULATED
+	rootNode->thetaUpdate_simultaneous();
+#else
+	// if the network does not use modulation and is not supervised, there is nothing to learn, so thetaUpdate is pointless.
 	if (supervised) {
-		//std::fill(accumulators.get(), accumulators.get() + activationArraySize, 0.0f);
 		rootNode->thetaUpdate_simultaneous();
 	}
-
+#endif
+			
 	nInferencesOverLifetime++;
 }
 

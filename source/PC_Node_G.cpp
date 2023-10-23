@@ -8,13 +8,14 @@
 PC_Node_G::PC_Node_G(PC_Node_GFixedParameters& p) :
 	IModule(),
 	inputSize(p.inputSize), outputSize(p.outputSize), nChildren(p.nChildren),
-	toChildren(),
+	toChildren(), 
 	toOutput(outputSize, p.nCols)
 {
 	toChildren.reserve(nChildren);
 	for (int i = 0; i < nChildren; i++) {
 		toChildren.emplace_back(p.childrenInputSize, p.nCols);
 	}
+
 };
 
 PC_Node_G::PC_Node_G(PC_Node_G* n)
@@ -27,12 +28,16 @@ PC_Node_G::PC_Node_G(PC_Node_G* n)
 	toChildren.reserve(n->toChildren.size());
 	for (int i = 0; i < n->toChildren.size(); i++) toChildren.emplace_back(n->toChildren[i]);
 	toOutput = n->toOutput;
+
 }
 
 
 int PC_Node_G::getNParameters()
 {
 	int cs = ((int)toChildren.size() == 0 ? 0 : toChildren[0].getNParameters());
+#ifdef ACTIVATION_VARIANCE
+	// TODO ?
+#endif
 	return cs + toOutput.getNParameters(); 
 }
 
@@ -103,7 +108,6 @@ PC_Node_G* PC_Node_G::combine(PC_Node_G** parents, float* weights, int nParents)
 
 	for (int j = 0; j < nParents; j++) { connexions[j] = &parents[j]->toOutput; }
 	combineConnexions(&child->toOutput);
-	
 
 	delete[] connexions;
 
@@ -118,6 +122,7 @@ PC_Node_G::PC_Node_G(std::ifstream& is)
 	READ_4B(outputSize, is);
 	READ_4B(nChildren, is);
 	
+	// TODO to output, modulation.
 	toChildren.reserve(nChildren);
 	for (int i = 0; i < toChildren.size(); i++) toChildren.emplace_back(is);
 }
@@ -127,7 +132,7 @@ void PC_Node_G::save(std::ofstream& os) {
 	WRITE_4B(outputSize, os);
 	WRITE_4B(nChildren, os);
 
-	
+	// TODO to output, modulation.
 	for (int i = 0; i < toChildren.size(); i++) toChildren[i].save(os);
 	toOutput.save(os);
 }

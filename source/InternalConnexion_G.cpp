@@ -61,7 +61,6 @@ InternalConnexion_G::InternalConnexion_G(int nRows, int nColumns) :
 		rand(_storagePtr, 0.0f, f0);
 		_storagePtr += s;
 	}
-
 }
 
 
@@ -105,8 +104,10 @@ void InternalConnexion_G::mutate(float p) {
 
 
 	int size = nRows * nColumns;
-	SET_BINOMIAL(size, p);
 
+#ifdef SPARSE_MUTATIONS
+
+	SET_BINOMIAL(size, p);
 	auto mutateMatrix = [&size, p, a, b, c](float* matrix)
 	{
 
@@ -129,6 +130,11 @@ void InternalConnexion_G::mutate(float p) {
 			matrix[matrixID] = mutateDecayParam(matrix[matrixID]);
 		}
 	};
+
+	
+#else
+	// TODO
+#endif
 	
 	for (int i = 0; i < N_STATIC_MATRICES_01; i++)
 	{
@@ -150,7 +156,7 @@ void InternalConnexion_G::mutate(float p) {
 
 	for (int i = 0; i < N_STATIC_VECTORS_R; i++)
 	{
-		mutateDecayMatrix(vectorsR[i].data());
+		mutateMatrix(vectorsR[i].data());
 	}
 
 }

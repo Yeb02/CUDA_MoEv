@@ -28,10 +28,14 @@ struct PC_Node_P {
 	MVector outputAccumulators;
 
 
+	// Dynamic parameters:
+
 
 	InternalConnexion_P toOutput;
 	std::vector<InternalConnexion_P> toChildren;
 	
+
+
 
 
 	PC_Node_P(PC_Node_G* type, PC_Node_G** nodes, int i, int iC, int* nC, int tNC);

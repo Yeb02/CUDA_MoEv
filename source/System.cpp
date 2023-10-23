@@ -143,13 +143,13 @@ void System::log(int step)
 	for (int j = 0; j < nAgents ; j++)
 	{
 		float ss = 0.0f;
-		for (int k = 0; k < nAgentCyclesPerModuleCycle; k++)
+		for (int k = 0; k < nEvaluationTrialsPerAgentCycle; k++)
 		{
 			float s = agentsScores[k][j];
 			ss += s;
 			max_s = s > max_s ? s : max_s;
 		}
-		ss /= (float)nAgentCyclesPerModuleCycle;
+		ss /= (float)nEvaluationTrialsPerAgentCycle;
 		max_avg_s = ss > max_avg_s ? ss : max_avg_s;
 		avg_avg_s += ss;
 	}
@@ -247,6 +247,8 @@ void System::perThreadMainLoop(const int threadID)
 				trial->step(teacherOutput);
 			}
 
+			//LOG(trial->score);
+
 			ul.lock();
 			nDoneProcessing--;
 			if (nDoneProcessing == 0) {
@@ -304,6 +306,15 @@ void System::evolve(int nSteps)
 
 		for (int j = 0; j < nAgentCyclesPerModuleCycle; j++)
 		{
+
+#ifdef TEACHING_T // a test.
+			for (int i = 0; i < TeachingTrial::vnow.size(); i++)
+			{
+				TeachingTrial::vprev[i] = TeachingTrial::vnow[i];
+				TeachingTrial::vnow[i] = UNIFORM_01 * 2.0f - 1.0f;
+			}	
+#endif
+
 			// zero agent score accumulators
 			for (int i = 0; i < nEvaluationTrialsPerAgentCycle; i++)
 			{
@@ -435,5 +446,16 @@ void System::replaceAgents()
 			teachers[i] = new AGENT(*(agents[positions[nAgents - 1 - i]]));
 		}
 	}
+
+
+#ifdef TEACHING_T
+	for (int i = 0; i < nAgents; i++) {
+
+		delete agents[i];
+
+		agents[i] = new AGENT(nModulesPerAgent);
+		agents[i]->createPhenotype(populations);
+	}
+#endif
 }
 

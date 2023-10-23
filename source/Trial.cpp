@@ -113,7 +113,6 @@ void CartPoleTrial::setObservations()
 	observations[3] = thetaDot;
 }
 
-
 void CartPoleTrial::reset(bool sameSeed) {
 	score = 0.0f;
 	isTrialOver = false;
@@ -214,6 +213,87 @@ Trial* CartPoleTrial::clone() {
 }
 
 
+std::vector<float> TeachingTrial::vnow(0);
+std::vector<float> TeachingTrial::vprev(0);
+
+TeachingTrial::TeachingTrial(int vSize, int phaseDuration) :
+	vSize(vSize), phaseDuration(phaseDuration)
+{
+	netInSize = vSize+1;
+	netOutSize = vSize;
+	observations.resize(netInSize);
+
+	reset();
+}
+
+void TeachingTrial::reset(bool sameSeed) {
+	score = 0.0f;
+	isTrialOver = false;
+	currentNStep = 0;
+
+	vnow.resize(vSize);
+	vprev.resize(vSize);
+	std::copy(vnow.data(), vnow.data() + vSize, observations.data() + 1);
+	observations[0] = -1.0f;
+}
+
+void TeachingTrial::step(const float* actions) {
+	
+
+	if (currentNStep >= 2*phaseDuration) isTrialOver = true;
+	if (isTrialOver) return;
+
+	if (actions[0] != actions[0]) // i.e. is NaN
+	{
+		std::cout << "NETWORK OUTPUT NaN" << std::endl;
+		return;
+	}
+
+	currentNStep++;
+
+	
+	if (currentNStep <= phaseDuration) {
+		float s = 0.0f;
+		for (int i = 0; i < vSize; i++) {
+			s += powf(vprev[i] - actions[i], 2.0f);
+		}
+		score -= s;
+	}
+	else {
+		float s = 0.0f;
+		for (int i = 0; i < vSize; i++) {
+			s += powf(vnow[i] - actions[i], 2.0f);
+		}
+		score -= s;
+	}
+
+	if (currentNStep == phaseDuration) {
+		observations[0] = 1.0f;
+	}
+
+	if (currentNStep == 2*phaseDuration) {
+		score /= (float)phaseDuration * 2.0f * (float)vSize;
+	}
+}
+
+void TeachingTrial::copy(Trial* t0) {
+	TeachingTrial* t = dynamic_cast<TeachingTrial*>(t0);
+	vSize = t->vSize;
+	phaseDuration = t->phaseDuration;
+	reset(true);
+}
+
+Trial* TeachingTrial::clone() {
+	TeachingTrial* t = new TeachingTrial(vSize, phaseDuration);
+	t->vSize = vSize;
+	t->phaseDuration = phaseDuration;
+
+	t->reset(true);
+	return (Trial*)t;
+}
+
+
+
 
 TMazeTrial::TMazeTrial(bool switchesSides) :
 	switchesSide(switchesSide)
@@ -235,7 +315,6 @@ void TMazeTrial::reset(bool sameSeed) {
 void TMazeTrial::subTrialReset() {
 	wentLeft = false;
 	currentNStep = 0;
-	inferenceStep = 0;
 	nSubTrials++;
 	observations[0] = -1.0f;
 	observations[1] = -1.0f;
@@ -255,14 +334,6 @@ void TMazeTrial::step(const float* actions) {
 
 	if (nSubTrials >= 20) {
 		isTrialOver = true;
-		return;
-	}
-
-	if (inferenceStep > 0) {
-		inferenceStep++;
-		if (inferenceStep >= nInferencesBetweenEnvSteps) {
-			inferenceStep = 0;
-		}
 		return;
 	}
 	
@@ -524,6 +595,7 @@ Trial* NLinksPendulumTrial::clone() {
 
 	return (Trial*)t;
 }
+
 
 
 
